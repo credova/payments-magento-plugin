@@ -1,6 +1,18 @@
 name: Test
 on: push
 jobs:
+  code-scan:
+    runs-on: ubuntu-22.04
+    name: Code Security Scan
+    steps:
+      - name: Scan Code
+        if: steps.maybe-reuse-image.outputs.exists != 'true'
+        uses: publicsquare-financial/psq-ops-actions/security@v11.14
+        with:
+            target: 'dir:./PublicSquare/Payments'
+            licenses: false
+            code: true
+
   unit-tests:
     runs-on: ubuntu-22.04
     container:
