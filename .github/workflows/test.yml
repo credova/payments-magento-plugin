@@ -6,7 +6,6 @@ jobs:
     name: Code Security Scan
     steps:
       - name: Scan Code
-        if: steps.maybe-reuse-image.outputs.exists != 'true'
         uses: publicsquare-financial/psq-ops-actions/security@v11.14
         with:
             target: 'dir:./PublicSquare/Payments'
