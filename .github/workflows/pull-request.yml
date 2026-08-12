@@ -1,0 +1,30 @@
+---
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  ci:
+    uses: credova/platform-workflows/.github/workflows/php-pull-request.yaml@v1
+    # No secrets passed: container: false skips the image build, and WarpBuild
+    # runners are provisioned org-wide via the WarpBuild GitHub App.
+    with:
+      container: false
+      runner: warp-ubuntu-2404-x64-4x
+      php-version: '8.3'
+      # Unit tests only (phpunit; no secrets required). The codeception acceptance
+      # suite needs a live Magento + selenium sandbox and PUBLICSQUARE_* API keys,
+      # so it is excluded from PR CI and run out-of-band — matching how the sibling
+      # plugins exclude their e2e suites.
+      test-command: composer install --prefer-dist --no-progress --no-interaction && make unit-test-verbose
