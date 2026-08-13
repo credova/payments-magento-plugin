@@ -16,7 +16,10 @@
     "codeception/module-phpbrowser": "^3.0",
     "codeception/module-cli": "^2.0",
     "phpunit/phpunit": "^10.0",
-    "phpseclib/phpseclib": "^3.0"
+    "phpseclib/phpseclib": "^3.0",
+    "magento/magento-coding-standard": "^29",
+    "phpcompatibility/php-compatibility": "^9.3",
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.2"
   },
   "autoload-dev": {
     "psr-4": {
@@ -31,7 +34,16 @@
       "php": "8.3.30"
     },
     "allow-plugins": {
-      "magento/composer-dependency-version-audit-plugin": true
+      "magento/composer-dependency-version-audit-plugin": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "audit": {
+      "abandoned": "report",
+      "ignore": {
+        "PKSA-xwpn-zs9j-6wy5": "transitive dev-only dep via magento/magento-coding-standard; webonyx/graphql-php is never executed at runtime in this plugin",
+        "PKSA-sf9j-1gs7-xzvx": "transitive dev-only dep via magento/magento-coding-standard; webonyx/graphql-php is never executed at runtime in this plugin",
+        "PKSA-7h5p-prw9-w5nr": "transitive dev-only dep via magento/magento-coding-standard; webonyx/graphql-php is never executed at runtime in this plugin"
+      }
     }
   }
 }

@@ -23,8 +23,8 @@ jobs:
       container: false
       runner: warp-ubuntu-2404-x64-4x
       php-version: '8.3'
-      # Unit tests only (phpunit; no secrets required). The codeception acceptance
-      # suite needs a live Magento + selenium sandbox and PUBLICSQUARE_* API keys,
-      # so it is excluded from PR CI and run out-of-band — matching how the sibling
-      # plugins exclude their e2e suites.
+      # phpcs against the Magento2 standard (phpcs.xml) plus a PHP 8.1–8.3
+      # compatibility pass (phpcs-compat.xml), matching the sibling plugins.
+      lint-command: composer install --prefer-dist --no-progress --no-interaction && make lint && make compat
+      # Unit tests only. Codeception acceptance suite is not run anywhere yet — https://app.shortcut.com/publicsq/story/88251
       test-command: composer install --prefer-dist --no-progress --no-interaction && make unit-test-verbose
