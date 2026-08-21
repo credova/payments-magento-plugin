@@ -126,6 +126,15 @@ unit-test:
 unit-test-verbose:
 	@./vendor/bin/phpunit -c tests/unit/phpunit.xml --testdox
 
+lint:
+	@./vendor/bin/phpcs --standard=phpcs.xml --warning-severity=0
+
+lint-fix:
+	@./vendor/bin/phpcbf --standard=phpcs.xml
+
+compat:
+	@./vendor/bin/phpcs --standard=phpcs-compat.xml
+
 # Integration testing helpers
 it-sample-data:
 	@./bin/it-sample-data
