@@ -2,7 +2,7 @@
   "name": "publicsquare/module-payments",
   "description": "PublicSquare provides a software platform for retailers to access third-party providers for lease-to-own financing and other lending products based on a consumer credit profile.",
   "type": "magento2-module",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "license": [
     "OSL-3.0",
     "AFL-3.0"
