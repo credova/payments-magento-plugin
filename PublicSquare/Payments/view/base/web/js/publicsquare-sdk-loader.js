@@ -1,7 +1,7 @@
 define([], function () {
   'use strict';
 
-  var SDK_URL = 'https://js.publicsquare.com/v1.16.0/';
+  var SDK_URL = 'https://js.publicsquare.com/v1.16.1/';
   var DEFAULT_LOAD_TIMEOUT_MS = 15000;
 
   var sdkLoadPromise = null;
