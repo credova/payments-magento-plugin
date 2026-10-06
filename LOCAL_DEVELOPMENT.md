@@ -54,12 +54,12 @@ Get them from [Adobe Commerce Marketplace](https://commercemarketplace.adobe.com
 Supply them in one of these ways before the first install:
 
 ```bash
-# Environment variables, read by bin/setup-composer-auth
+# Environment variables, read by bin/it-up
 export ADOBE_ACCESS_PUBLIC_KEY=<public key>
 export ADOBE_ACCESS_PRIVATE_KEY=<private key>
 
-# Or store them in the global Composer configuration on the host
-composer config --global http-basic.repo.magento.com <public key> <private key>
+# Or store them in ~/.composer, which the stack mounts into the container
+COMPOSER_HOME=~/.composer composer config --global http-basic.repo.magento.com <public key> <private key>
 ```
 
 You can also pass them inline:
@@ -125,7 +125,7 @@ If `magento-install/src/bin/magento` exists, run `mise run dev:build` again **wi
 |---------|-------|-----|
 | `failed to connect to the docker API at unix://...` | `DOCKER_HOST` points to an engine that is not running. | Unset `DOCKER_HOST`, or start that engine. |
 | `proxy already running` (Podman) or `port is already allocated` (Docker) | A different container uses a port of the stack. | Find it with `docker ps --filter publish=<port>`, then stop it. |
-| `rootlessport cannot expose privileged port 80` | The Podman machine is rootless. | Set it to rootful. See [Podman: use a rootful machine](#podman-use-a-rootful-machine). |
+| `rootlessport cannot expose privileged port 80` | The Podman machine is rootless. | Set it to rootful. See [Docker engine](#docker-engine). |
 | `Magento download failed: bin/magento is missing in the phpfpm container` | Usually the access keys for `repo.magento.com` are wrong (HTTP 401), or a service did not start. Read the output above this error. | Supply the keys (see [Adobe Commerce Marketplace access keys](#adobe-commerce-marketplace-access-keys)), run `mise run dev:reset`, then install again. |
 | `exists but does not look initialized` | A previous install did not complete. | `mise run dev:up` removes the directory and installs again. To also remove old volumes, run `mise run dev:reset` first. |
 | `cannot bind tcp port :8081: address already in use` | Another process uses the phpMyAdmin port. | Set `PHPMYADMIN_PORT` to a free port, run `mise run dev:reset`, then install again. |

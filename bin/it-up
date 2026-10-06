@@ -52,7 +52,7 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
     && ! grep -qs 'repo.magento.com' "${HOME}/.composer/auth.json"; then
     echo "Adobe Commerce Marketplace access keys not found."
     echo "Export ADOBE_ACCESS_PUBLIC_KEY and ADOBE_ACCESS_PRIVATE_KEY, or run:"
-    echo "  composer config --global http-basic.repo.magento.com <public key> <private key>"
+    echo "  COMPOSER_HOME=~/.composer composer config --global http-basic.repo.magento.com <public key> <private key>"
     exit 1
   fi
   echo
@@ -73,7 +73,14 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
   # docker-magento publishes phpMyAdmin on 8080, which other local services often hold.
   sed -i.bak "s/\"8080:80\"/\"${PHPMYADMIN_PORT}:80\"/" compose.dev.yaml compose.dev-linux.yaml
   rm -f compose.dev.yaml.bak compose.dev-linux.yaml.bak
+  # Pin images before the first boot, as bin/download does, so the stack does not pull the defaults first.
+  bin/detect-versions community "${MAGENTO_VERSION}" || true
   __start_with_retry --no-dev
+  # docker-magento's bin/setup-composer-auth does not read the env vars. Write them to the mounted ~/.composer.
+  if [[ -n "${ADOBE_ACCESS_PUBLIC_KEY:-}" && -n "${ADOBE_ACCESS_PRIVATE_KEY:-}" ]]; then
+    echo "composer config --global http-basic.repo.magento.com ${ADOBE_ACCESS_PUBLIC_KEY} ${ADOBE_ACCESS_PRIVATE_KEY}" \
+      | bin/clinotty bash -
+  fi
   bin/download community "${MAGENTO_VERSION}"
   # bin/download exits 0 even when it fails. Its files are in the container until bin/setup copies them out.
   if ! bin/clinotty test -f bin/magento; then
