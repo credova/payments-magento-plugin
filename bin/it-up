@@ -50,10 +50,14 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
   # The Magento download needs repo.magento.com keys. ~/.composer is mounted into the container.
   if [[ -z "${ADOBE_ACCESS_PUBLIC_KEY:-}" || -z "${ADOBE_ACCESS_PRIVATE_KEY:-}" ]] \
     && ! grep -qs 'repo.magento.com' "${HOME}/.composer/auth.json"; then
-    echo "Adobe Commerce Marketplace access keys not found."
-    echo "Export ADOBE_ACCESS_PUBLIC_KEY and ADOBE_ACCESS_PRIVATE_KEY, or run:"
-    echo "  COMPOSER_HOME=~/.composer composer config --global http-basic.repo.magento.com <public key> <private key>"
-    exit 1
+    # Hidden prompt keeps the keys out of shell history. They are saved to ~/.composer below.
+    echo "Adobe Commerce Marketplace access keys are needed to download Magento (input is hidden)."
+    read -rsp "  Public key: " ADOBE_ACCESS_PUBLIC_KEY || true; echo
+    read -rsp "  Private key: " ADOBE_ACCESS_PRIVATE_KEY || true; echo
+    if [[ -z "${ADOBE_ACCESS_PUBLIC_KEY}" || -z "${ADOBE_ACCESS_PRIVATE_KEY}" ]]; then
+      echo "Adobe Commerce Marketplace access keys not found. See LOCAL_DEVELOPMENT.md."
+      exit 1
+    fi
   fi
   echo
   echo "Magento will be installed in ${MAGENTO_DIR} using markshust/docker-magento onelinesetup."
@@ -82,7 +86,7 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
   # Pin images before the first boot, as bin/download does, so the stack does not pull the defaults first.
   bin/detect-versions community "${MAGENTO_VERSION}" || true
   __start_with_retry --no-dev
-  # docker-magento's bin/setup-composer-auth does not read the env vars. Write them to the mounted ~/.composer.
+  # docker-magento's bin/setup-composer-auth does not read env vars or prompted keys. Save them to the mounted ~/.composer.
   if [[ -n "${ADOBE_ACCESS_PUBLIC_KEY:-}" && -n "${ADOBE_ACCESS_PRIVATE_KEY:-}" ]]; then
     echo "composer config --global http-basic.repo.magento.com ${ADOBE_ACCESS_PUBLIC_KEY} ${ADOBE_ACCESS_PRIVATE_KEY}" \
       | bin/clinotty bash -

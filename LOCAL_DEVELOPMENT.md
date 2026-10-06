@@ -51,21 +51,11 @@ docker context use orbstack
 
 Composer downloads Magento from `repo.magento.com`, which requires access keys.
 Get them from [Adobe Commerce Marketplace](https://commercemarketplace.adobe.com/) under **My Profile > Access Keys**.
-Supply them in one of these ways before the first install:
+On the first install, `bin/it-up` asks for the keys with hidden input and saves them to `~/.composer/auth.json`, which the stack mounts into the container.
+Later installs read them from there.
 
-```bash
-# Environment variables, read by bin/it-up
-export ADOBE_ACCESS_PUBLIC_KEY=<public key>
-export ADOBE_ACCESS_PRIVATE_KEY=<private key>
-
-# Or store them in ~/.composer, which the stack mounts into the container
-COMPOSER_HOME=~/.composer composer config --global http-basic.repo.magento.com <public key> <private key>
-```
-
-You can also pass them inline:
-`ADOBE_ACCESS_PUBLIC_KEY=<public key> ADOBE_ACCESS_PRIVATE_KEY=<private key> mise run dev:build`.
-
-If neither is present, `bin/it-up` stops before the download with `Adobe Commerce Marketplace access keys not found`.
+For scripted installs, set `ADOBE_ACCESS_PUBLIC_KEY` and `ADOBE_ACCESS_PRIVATE_KEY` in the environment instead, for example from a secret manager.
+Do not type the keys on the command line, because your shell can save them in its history.
 
 ## First install
 

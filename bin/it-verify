@@ -14,9 +14,10 @@ if [[ ! -x "${MAGENTO_DIR}/bin/clinotty" ]]; then
   exit 1
 fi
 
-STATUS="$(curl -ks -o /dev/null -w '%{http_code}' "https://${MAGENTO_HOST}/" || true)"
-if [[ ! "${STATUS}" =~ ^(200|301|302)$ ]]; then
-  echo "FAIL: https://${MAGENTO_HOST}/ returned '${STATUS}'. Check: mise run magento:cli -- tail -n 200 var/log/exception.log"
+CURL_RC=0
+STATUS="$(curl -ks -o /dev/null -w '%{http_code}' "https://${MAGENTO_HOST}/")" || CURL_RC=$?
+if [[ "${CURL_RC}" -ne 0 || ! "${STATUS}" =~ ^(200|301|302)$ ]]; then
+  echo "FAIL: https://${MAGENTO_HOST}/ returned '${STATUS}' (curl exit ${CURL_RC}). Check: mise run magento:cli -- tail -n 200 var/log/exception.log"
   exit 1
 fi
 echo "OK: https://${MAGENTO_HOST}/ returned ${STATUS}."
