@@ -1,10 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Checking magento.test from Selenium container..."
-docker exec -it publicsquare-magento-payments-plugin-selenium-1 curl -I http://magento.test || true
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# shellcheck source=lib/clean-path
+source "${DIR}/lib/clean-path"
+ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
+MAGENTO_DIR="${1:-$ROOT_DIR/magento-install}"
+MAGENTO_HOST="${2:-magento.test}"
 
-echo "If not 200/301/302, check Magento logs:"
-echo "  docker compose exec web tail -n 200 var/log/exception.log"
+# Smoke test for the dev stack: the store answers over HTTPS and the plugin module is enabled.
+if [[ ! -x "${MAGENTO_DIR}/bin/clinotty" ]]; then
+  echo "No dev stack found in '${MAGENTO_DIR}'. Run 'mise run dev:build' first."
+  exit 1
+fi
 
+STATUS="$(curl -ks -o /dev/null -w '%{http_code}' "https://${MAGENTO_HOST}/" || true)"
+if [[ ! "${STATUS}" =~ ^(200|301|302)$ ]]; then
+  echo "FAIL: https://${MAGENTO_HOST}/ returned '${STATUS}'. Check: mise run magento:cli -- tail -n 200 var/log/exception.log"
+  exit 1
+fi
+echo "OK: https://${MAGENTO_HOST}/ returned ${STATUS}."
 
+cd "${MAGENTO_DIR}"
+if ! bin/clinotty bin/magento module:status PublicSquare_Payments | grep -q 'Module is enabled'; then
+  echo "FAIL: PublicSquare_Payments is not enabled. Run 'mise run dev:install'."
+  exit 1
+fi
+echo "OK: PublicSquare_Payments is enabled."

@@ -73,6 +73,12 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
   # docker-magento publishes phpMyAdmin on 8080, which other local services often hold.
   sed -i.bak "s/\"8080:80\"/\"${PHPMYADMIN_PORT}:80\"/" compose.dev.yaml compose.dev-linux.yaml
   rm -f compose.dev.yaml.bak compose.dev-linux.yaml.bak
+  # Mount the host CA dir as mkcert's CAROOT. setup-ssl makes the CA there once, then every install reuses it.
+  mkdir -p "${DEV_CA_DIR}" && chmod 700 "${DEV_CA_DIR}"
+  awk -v m="${DEV_CA_DIR}:${CONTAINER_CA_DIR}" \
+    '{ print } /^ *- ssldata:\/etc\/nginx\/certs$/ { ind = $0; sub(/-.*/, "", ind); print ind "- " m }' \
+    compose.yaml > compose.yaml.tmp && mv compose.yaml.tmp compose.yaml
+  grep -qF "${CONTAINER_CA_DIR}" compose.yaml || echo "Warning: could not add the CA mount; each install will create a new CA."
   # Pin images before the first boot, as bin/download does, so the stack does not pull the defaults first.
   bin/detect-versions community "${MAGENTO_VERSION}" || true
   __start_with_retry --no-dev
@@ -88,17 +94,6 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
     echo "Likely causes: invalid Adobe access keys (HTTP 401), or a service that did not start."
     echo "Read the output above, then run 'mise run dev:reset' and install again."
     exit 1
-  fi
-  # bin/setup-ssl skips CA creation when the app container has a CA. Its restart then drops the CA.
-  APP_CONTAINER="$(bin/docker-compose ps -q app)"
-  if [[ -f "${DEV_CA_DIR}/rootCA-key.pem" ]]; then
-    docker exec -u root "${APP_CONTAINER}" mkdir -p "${CONTAINER_CA_DIR}"
-    docker cp "${DEV_CA_DIR}/." "${APP_CONTAINER}:${CONTAINER_CA_DIR}/"
-  else
-    bin/setup-ssl-ca
-    mkdir -p "${DEV_CA_DIR}" && chmod 700 "${DEV_CA_DIR}"
-    docker cp "${APP_CONTAINER}:${CONTAINER_CA_DIR}/." "${DEV_CA_DIR}/"
-    chmod 600 "${DEV_CA_DIR}/rootCA-key.pem"
   fi
   bin/setup "${MAGENTO_HOST}"
   echo "Initial Magento onelinesetup completed."

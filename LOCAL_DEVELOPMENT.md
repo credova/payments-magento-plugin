@@ -99,7 +99,8 @@ To start again with a new CA, remove that directory and the old "mkcert" certifi
 | Deploy plugin changes | `mise run magento:deploy` |
 | Run a Magento command | `mise run magento -- <command>` |
 | Open a shell in the container | `mise run magento:cli -- bash` |
-| Run the acceptance tests | `mise run test:acceptance` |
+| Check that the store and plugin work | `mise run dev:verify` |
+| Run the acceptance tests (needs Selenium on port 4444; the dev stack does not include it yet) | `mise run test:acceptance` |
 | Remove the stack and all its data | `mise run dev:reset` |
 
 The plugin source in `PublicSquare/` is mounted into the container.

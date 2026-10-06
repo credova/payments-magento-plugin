@@ -67,7 +67,7 @@ description = "Run dev:up, dev:install, and dev:sample-data in sequence"
 run = [{ task = "dev:up" }, { task = "dev:install" }, { task = "dev:sample-data" }]
 
 [tasks."dev:verify"]
-description = "Check that magento.test responds from the Selenium container"
+description = "Smoke-test the dev stack: magento.test answers over HTTPS and the plugin is enabled"
 raw = true
 run = "bin/it-verify"
 
