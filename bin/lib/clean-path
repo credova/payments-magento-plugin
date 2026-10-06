@@ -1,0 +1,4 @@
+# Sourced by bin/ scripts and mise tasks. Drops relative PATH entries: inside magento-install/,
+# a stale `./bin` makes `#!/usr/bin/env bash` find its bin/bash, which then calls itself forever.
+PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep '^/' | paste -sd: -)"
+export PATH

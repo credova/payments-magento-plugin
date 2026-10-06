@@ -87,17 +87,18 @@ depends = ["composer:install"]
 run = "vendor/bin/codecept run tests/Acceptance/"
 
 # Pass-through commands into the running dev stack. Extra args go to the command.
+# clean-path drops a stale relative ./bin from PATH; see bin/lib/clean-path.
 [tasks.magento]
 description = "Run bin/magento in the dev stack (mise run magento -- setup:upgrade)"
 dir = "{{config_root}}/magento-install"
 raw = true
-run = "bin/magento"
+run = '. "{{config_root}}/bin/lib/clean-path" && exec bin/magento'
 
 [tasks."magento:cli"]
 description = "Run any command in the dev stack phpfpm container"
 dir = "{{config_root}}/magento-install"
 raw = true
-run = "bin/cli"
+run = '. "{{config_root}}/bin/lib/clean-path" && exec bin/cli'
 
 [tasks."magento:deploy"]
 description = "Deploy plugin changes to the dev stack (setup:upgrade, DI compile, reindex, static content)"
@@ -108,10 +109,10 @@ run = "bin/deploy"
 description = "Run cache-clean in the dev stack (pass --watch to watch files)"
 dir = "{{config_root}}/magento-install"
 raw = true
-run = "bin/cache-clean"
+run = '. "{{config_root}}/bin/lib/clean-path" && exec bin/cache-clean'
 
 [tasks."magento:n98"]
 description = "Run n98-magerun2 in the dev stack"
 dir = "{{config_root}}/magento-install"
 raw = true
-run = "bin/n98-magerun2"
+run = '. "{{config_root}}/bin/lib/clean-path" && exec bin/n98-magerun2'
