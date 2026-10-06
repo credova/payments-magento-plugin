@@ -1,0 +1,117 @@
+min_version = "2026.7.4"
+
+# Exact pins. Do not bump until the production versions are confirmed.
+# PHP must match config.platform.php in composer.json.
+[tools]
+# vfox-php compiles from source; on CI "system" uses setup-php's PHP instead.
+# postinstall pins Composer (the plugin installs the latest). The plugin omits ext-zip; php-webdriver needs it.
+php = { version = "{% if env.CI is defined %}system{% else %}8.3.30{% endif %}", install_env = { PHP_EXTRA_CONFIGURE_OPTIONS = "--with-zip" }, postinstall = '"$MISE_TOOL_INSTALL_PATH/bin/composer" self-update --no-interaction 2.9.7' }
+
+[tasks."composer:install"]
+description = "Install Composer dependencies from composer.lock"
+run = "composer install --prefer-dist --no-progress --no-interaction"
+sources = ["composer.json", "composer.lock"]
+outputs = ["vendor/autoload.php"]
+
+[tasks.lint]
+description = "Run all linters (Magento2 coding standard and PHP compatibility)"
+depends = ["lint:style", "lint:compat"]
+
+[tasks."lint:style"]
+description = "Check code against the Magento2 coding standard (phpcs.xml)"
+depends = ["composer:install"]
+run = "vendor/bin/phpcs --standard=phpcs.xml --warning-severity=0"
+
+[tasks."lint:compat"]
+description = "Check PHP version compatibility (phpcs-compat.xml)"
+depends = ["composer:install"]
+run = "vendor/bin/phpcs --standard=phpcs-compat.xml"
+
+[tasks."lint:fix"]
+description = "Fix coding standard violations that phpcbf can fix"
+depends = ["composer:install"]
+run = "vendor/bin/phpcbf --standard=phpcs.xml"
+
+[tasks.test]
+description = "Run the unit tests with testdox output (extra args go to phpunit)"
+depends = ["composer:install"]
+run = "vendor/bin/phpunit -c tests/unit/phpunit.xml --testdox"
+
+[tasks."test:unit"]
+description = "Run the unit tests with compact output (extra args go to phpunit)"
+depends = ["composer:install"]
+run = "vendor/bin/phpunit -c tests/unit/phpunit.xml"
+
+# Local dev stack: Magento in magento-install/, created by markshust/docker-magento.
+[tasks."dev:up"]
+description = "Create and start the Magento dev stack in magento-install/"
+raw = true
+run = "bin/it-up"
+
+[tasks."dev:down"]
+description = "Stop the Magento dev stack"
+run = "bin/it-down"
+
+[tasks."dev:install"]
+description = "Install this plugin into the dev stack (keys from PUBLICSQUARE_PUBLIC_KEY/SECRET_KEY, else prompts)"
+raw = true
+run = "bin/it-install"
+
+[tasks."dev:sample-data"]
+description = "Deploy Magento sample data into the dev stack"
+raw = true
+run = "bin/it-sample-data"
+
+[tasks."dev:build"]
+description = "Run dev:up, dev:install, and dev:sample-data in sequence"
+raw = true
+run = """
+bin/it-up
+bin/it-install
+bin/it-sample-data
+"""
+
+[tasks."dev:verify"]
+description = "Check that magento.test responds from the Selenium container"
+raw = true
+run = "bin/it-verify"
+
+[tasks."dev:reset"]
+description = "Delete the dev stack, its volumes, and magento-install/"
+raw = true
+run = "bin/it-reset"
+
+[tasks."test:acceptance"]
+description = "Run the Codeception acceptance suite against the dev stack"
+depends = ["composer:install"]
+run = "vendor/bin/codecept run tests/Acceptance/"
+
+# Pass-through commands into the running dev stack. Extra args go to the command.
+[tasks.magento]
+description = "Run bin/magento in the dev stack (mise run magento -- setup:upgrade)"
+dir = "{{config_root}}/magento-install"
+raw = true
+run = "bin/magento"
+
+[tasks."magento:cli"]
+description = "Run any command in the dev stack phpfpm container"
+dir = "{{config_root}}/magento-install"
+raw = true
+run = "bin/cli"
+
+[tasks."magento:deploy"]
+description = "Deploy plugin changes to the dev stack (setup:upgrade, DI compile, reindex, static content)"
+raw = true
+run = "bin/deploy"
+
+[tasks."magento:cache-clean"]
+description = "Run cache-clean in the dev stack (pass --watch to watch files)"
+dir = "{{config_root}}/magento-install"
+raw = true
+run = "bin/cache-clean"
+
+[tasks."magento:n98"]
+description = "Run n98-magerun2 in the dev stack"
+dir = "{{config_root}}/magento-install"
+raw = true
+run = "bin/n98-magerun2"

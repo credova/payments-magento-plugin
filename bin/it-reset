@@ -7,7 +7,7 @@ MAGENTO_DIR="${ROOT_DIR}/magento-install"
 
 cd "${ROOT_DIR}"
 
-echo "Stopping IT stack and removing volumes using root compose.yaml (if any)..."
+echo "Stopping legacy stack and removing volumes using root compose.yaml (if any)..."
 docker compose down -v --remove-orphans || true
 
 echo "Stopping and removing magento-install Docker stack (if present)..."
@@ -39,4 +39,4 @@ docker volume ls -q | grep -E 'publicsquare-magento-payments-plugin_(magento-dat
 echo "Removing magento-install directory at project root..."
 rm -rf "${MAGENTO_DIR}"
 
-echo "IT stack fully reset. You can now run 'make it-up' for a clean install."
+echo "Dev stack fully reset. You can now run 'mise run dev:build' for a clean install."

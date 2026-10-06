@@ -4,69 +4,34 @@ This file provides guidance for agentic coding assistants (like opencode) workin
 
 ## Build/Setup Commands
 
-Use these commands to set up the development environment, install dependencies, and prepare the Magento site.
+Follow [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) for the toolchain, the local Magento stack, and the `mise` tasks. Run `mise tasks` to list them. There is no Makefile.
 
-### Docker and Magento Setup
-- **Full Setup with Keys**: `make it-complete-build PUBLICSQUARE_PUBLIC_KEY PUBLICSQUARE_SECRET_KEY` - Installs Magento, configures Docker, and sets up the payment plugin.
-- **Start Containers**: `make it-up` - Starts all project containers.
-- **Stop Containers**: `make it-down` - Stops project containers; `make stopall` stops all running containers.
-
-### Dependencies
-- **Install Composer Deps**: `composer install --prefer-dist --no-progress --no-interaction --no-suggest` - Installs PHP dependencies.
-- **Magento CLI**: `make magento COMMAND` - Runs Magento CLI commands (e.g., `make magento setup:upgrade`).
-- **Cache Clean**: `make cache-clean` - Accesses cache-clean CLI for clearing caches.
-
-### Development Environment Notes
-- In development, the directory `./magento-install` contains the Magento instance and source code to run the application. However, this code is runtime-only and **nothing under this directory should be edited or modified in any way**. This directory can be used for reference only.
+- **Pins are frozen**: Do not change the PHP or Composer versions in `mise.toml`, or `config.platform.php` in `composer.json`, until the production versions are confirmed. Do not run `composer update`.
+- **`./magento-install` is runtime-only**: It contains the Magento instance that the local stack runs. **Do not edit anything under this directory.** Use it for reference only.
 
 ## Testing Commands
 
 The project uses PHPUnit for unit tests and Codeception for acceptance/integration tests. Run tests locally before committing.
 
 ### Unit Tests
-- **Run All Unit Tests**: `make it-verify` - Executes PHPUnit on `tests/unit/` using `tests/unit/phpunit.xml`.
-- **Coverage**: Add `--coverage-html tests/_output/coverage` for HTML coverage reports.
+- **Run All Unit Tests**: `mise run test` - Executes PHPUnit on `tests/unit/` using `tests/unit/phpunit.xml` (testdox output). `mise run test:unit` gives compact output.
+- **Extra Arguments**: Arguments after `--` go to PHPUnit, e.g. `mise run test -- --filter ConfigTest`.
+- **Coverage**: Add `-- --coverage-html tests/_output/coverage` for HTML coverage reports.
 
 ### Integration/Acceptance Tests
-- **Run All Integration Tests**: `make it-test` - Executes Codeception on `tests/Acceptance/` using `codeception.yml`.
+- **Run All Integration Tests**: `mise run test:acceptance` - Executes Codeception on `tests/Acceptance/` using `codeception.yml`. The local stack must be running (see LOCAL_DEVELOPMENT.md).
 - **Single Test**: `php vendor/bin/codecept run tests/Acceptance/TestFile.php:TestMethod` - Runs a specific acceptance test.
 - **With Verbose/Debug**: `php vendor/bin/codecept run -v` or `php vendor/bin/codecept run --debug`.
-- **Setup for Integration Tests**: `make it-complete-build` - Builds full integration environment with sample data.
-- **Reset/Up/Down**: `make it-reset` / `make it-up` / `make it-down` - Manages integration test environment.
-- **Sample Data**: `make it-sample-data` - Installs sample data for testing.
-- **Verify Integration**: `make it-verify` - Verifies integration setup.
 
 ### CI/CD
-GitHub Actions (`.github/workflows/test.yml`) automates:
-- Docker build with PHP 8.3.
-- Composer install.
-- Selenium setup for browser tests.
-- Runs `php vendor/bin/codecept run -f` for full acceptance tests.
-- Uploads test artifacts on failure.
+`.github/workflows/pull-request.yml` calls the shared `credova/platform-workflows` PHP workflow. It runs `mise run lint` and `mise run test` on PHP 8.3. The acceptance suite does not run in CI.
 
-Always run `make it-verify` and `make it-test` locally before pushing.
+Always run `mise run lint` and `mise run test` locally before pushing.
 
 ## Linting and Code Quality
 
-No linting tools are currently configured in the root project. To improve code quality, add these tools. Install via Composer dev dependencies, create configs, and add Makefile targets.
-
-### Recommended Tools
-- **PHPStan (Static Analysis)**: Detects bugs and enforces types.
-  - Install: `composer require --dev phpstan/phpstan`
-  - Config: Create `phpstan.neon` with baseline and level (start at 5 for Magento).
-  - Run: `php vendor/bin/phpstan analyse PublicSquare/` (add to Makefile: `lint-phpstan: php vendor/bin/phpstan analyse`).
-- **PHP CodeSniffer (PHPCS) for Style**: Enforces PSR-12 and custom rules.
-  - Install: `composer require --dev squizlabs/php_codesniffer`
-  - Config: Create `phpcs.xml` with `<rule ref="PSR12"/>` and exclude vendor/.
-  - Run: `php vendor/bin/phpcs PublicSquare/` (add to Makefile: `lint-phpcs: php vendor/bin/phpcs PublicSquare/`).
-  - Fix: `php vendor/bin/phpcbf PublicSquare/` for auto-fixes.
-- **PHPMD (Mess Detector)**: Finds code smells.
-  - Install: `composer require --dev phpmd/phpmd`
-  - Config: Create `phpmd.xml` with rulesets (e.g., codesize, unusedcode).
-  - Run: `php vendor/bin/phpmd PublicSquare/ text phpmd.xml` (add to Makefile: `lint-phpmd: php vendor/bin/phpmd PublicSquare/ text phpmd.xml`).
-- **Combined Linting**: Add `make lint: make lint-phpstan && make lint-phpcs && make lint-phpmd` to run all.
-
-Integrate into CI: Add lint steps to `.github/workflows/test.yml` before tests. Use pre-commit hooks if needed.
+- **Lint**: `mise run lint` - Runs `lint:style` (phpcs with the Magento2 standard, `phpcs.xml`) and `lint:compat` (PHP compatibility, `phpcs-compat.xml`).
+- **Fix**: `mise run lint:fix` - Fixes what phpcbf can fix.
 
 ## Code Style Guidelines
 
