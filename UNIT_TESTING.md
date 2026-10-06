@@ -43,8 +43,7 @@ tests/unit/
 
 ### Prerequisites
 
-- PHP 8.4+
-- Composer
+- PHP 8.3.30 and Composer 2.9.7, installed by `mise install` (see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md#toolchain))
 - No Magento installation required
 
 ### Installation
