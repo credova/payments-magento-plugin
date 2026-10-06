@@ -22,9 +22,7 @@ jobs:
     with:
       container: false
       runner: warp-ubuntu-2404-x64-4x
+      # setup-php takes major.minor only. mise.toml pins 8.3.30 locally and uses this PHP on CI.
       php-version: '8.3'
-      # phpcs against the Magento2 standard (phpcs.xml) plus a PHP 8.1–8.3
-      # compatibility pass (phpcs-compat.xml), matching the sibling plugins.
-      lint-command: composer install --prefer-dist --no-progress --no-interaction && make lint && make compat
-      # Unit tests only. Codeception acceptance suite is not run anywhere yet — https://app.shortcut.com/publicsq/story/88251
-      test-command: composer install --prefer-dist --no-progress --no-interaction && make unit-test-verbose
+      # No lint-command/test-command: the shared workflow runs `mise run lint` and `mise run test`
+      # when those tasks exist. Unit tests only; the Codeception suite does not run in CI.

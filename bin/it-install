@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# shellcheck source=lib/clean-path
+source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 
 # Set install directory / magento version / host

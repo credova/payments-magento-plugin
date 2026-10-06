@@ -2,6 +2,8 @@
 set -euo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# shellcheck source=lib/clean-path
+source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 
 # Use the same targeted Magento install directory / version / host convention as bin/it-install / bin/it-up.

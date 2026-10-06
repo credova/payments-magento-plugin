@@ -43,20 +43,20 @@ tests/unit/
 
 ### Prerequisites
 
-- PHP 8.4+
-- Composer
+- PHP 8.3.30 and Composer 2.9.7, installed by `mise install` (see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md#toolchain))
 - No Magento installation required
 
 ### Installation
 
-1. **Install dependencies:**
+1. **Install PHP, Composer, and dependencies:**
    ```bash
-   composer install
+   mise install
+   mise run composer:install
    ```
 
 2. **Verify setup:**
    ```bash
-   make unit-test
+   mise run test:unit
    ```
 
 ## Usage
@@ -65,10 +65,13 @@ tests/unit/
 
 ```bash
 # Run all unit tests
-make unit-test
+mise run test:unit
 
-# Run with verbose output
-make unit-test-verbose
+# Run with verbose (testdox) output
+mise run test
+
+# Pass extra PHPUnit arguments after --
+mise run test -- --filter testGetAllowedCurrenciesReturnsUSD
 
 # Run specific test file
 ./vendor/bin/phpunit -c tests/unit/phpunit.xml tests/unit/Helper/ConfigTest.php
@@ -260,21 +263,16 @@ When you need to mock a new Magento class:
 
 ### GitHub Actions
 
-Add to your workflow:
-
-```yaml
-- name: Run Unit Tests
-  run: make unit-test
-```
+`.github/workflows/pull-request.yml` runs `mise run test` through the shared PHP workflow.
 
 ### Local Development
 
 ```bash
 # Before committing
-make unit-test
+mise run test:unit
 
 # Continuous testing (if using file watchers)
-fswatch -o tests/unit/ | xargs -n1 -I{} make unit-test
+fswatch -o tests/unit/ | xargs -n1 -I{} mise run test:unit
 ```
 
 ## Examples

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# shellcheck source=lib/clean-path
+source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 MAGENTO_DIR="${1:-$ROOT_DIR/magento-install}"
 # Keep CLI signature aligned with other IT scripts (version/host unused here but accepted).
