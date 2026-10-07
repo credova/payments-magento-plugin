@@ -12,17 +12,28 @@ define([
   'Magento_Checkout/js/model/url-builder',
   'mage/storage',
   'mage/translate',
-  "Magento_Customer/js/model/customer",
-  "Magento_Checkout/js/model/place-order",
-  "Magento_Checkout/js/model/quote",
-], function ($, VaultComponent, messageList, fullScreenLoader, urlBuilder, storage, $t, customer, placeOrderService, quote) {
+  'Magento_Customer/js/model/customer',
+  'Magento_Checkout/js/model/place-order',
+  'Magento_Checkout/js/model/quote',
+], function (
+  $,
+  VaultComponent,
+  messageList,
+  fullScreenLoader,
+  urlBuilder,
+  storage,
+  $t,
+  customer,
+  placeOrderService,
+  quote,
+) {
   'use strict';
 
   return VaultComponent.extend({
     defaults: {
       template: 'Magento_Vault/payment/form',
       modules: {
-        hostedFields: '${ $.parentName }.publicsquare_payments'
+        hostedFields: '${ $.parentName }.publicsquare_payments',
       },
       additionalData: {},
       idempotencyKey: null,
@@ -34,7 +45,6 @@ define([
       self.idempotencyKey = self.generateIdempotencyKey();
       return self;
     },
-
 
     getIcons: function (type) {
       return {
@@ -68,53 +78,54 @@ define([
       return this.details.type;
     },
 
-      /**
-       * Place order
-       */
+    /**
+     * Place order
+     */
     placeOrder: function () {
       var self = this;
 
       self.hostedFields(() => {
         self.placeOrderWithCardId(self.publicHash);
-      })
+      });
     },
 
     placeOrderWithCardId: function (publicHash) {
       fullScreenLoader.startLoader();
       var serviceUrl = urlBuilder.createUrl(
-        customer.isLoggedIn() ?
-          '/carts/mine/payment-information' :
-          '/guest-carts/:quoteId/payment-information',
+        customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
         {
-          quoteId: quote.getQuoteId()
-        }
+          quoteId: quote.getQuoteId(),
+        },
       );
 
       return placeOrderService(
         serviceUrl,
         {
           ...(!customer.isLoggedIn() && { email: quote.guestEmail }),
-          paymentMethod: this.getData()
+          paymentMethod: this.getData(),
         },
-        messageList
-      ).done(function (response) {
-        // Handle successful order placement
-        const maskId = window.checkoutConfig.quoteData.entity_id;
-        const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
-        $.mage.redirect(successUrl);
-      }).fail(function (response) {
-        messageList.addErrorMessage({
-          message: $t('Something went wrong. Please try again or contact support for assistance.')
+        messageList,
+      )
+        .done(function (response) {
+          // Handle successful order placement
+          const maskId = window.checkoutConfig.quoteData.entity_id;
+          const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
+          $.mage.redirect(successUrl);
+        })
+        .fail(function (response) {
+          messageList.addErrorMessage({
+            message: $t('Something went wrong. Please try again or contact support for assistance.'),
+          });
+        })
+        .always(function () {
+          fullScreenLoader.stopLoader();
         });
-      }).always(function () {
-        fullScreenLoader.stopLoader();
-      });
     },
 
-      /**
-       * Get payment method data
-       * @returns {Object}
-       */
+    /**
+     * Get payment method data
+     * @returns {Object}
+     */
     getData: function () {
       var data = {
         method: this.code,
@@ -122,9 +133,12 @@ define([
           public_hash: this.publicHash,
           idempotencyKey: this.idempotencyKey,
         },
-        ...(window.checkoutConfig.checkoutAgreements && window.checkoutConfig.checkoutAgreements.agreements && {
-          extension_attributes: { agreement_ids: window.checkoutConfig.checkoutAgreements.agreements.map(({ agreementId }) => agreementId) }
-        })
+        ...(window.checkoutConfig.checkoutAgreements &&
+          window.checkoutConfig.checkoutAgreements.agreements && {
+            extension_attributes: {
+              agreement_ids: window.checkoutConfig.checkoutAgreements.agreements.map(({ agreementId }) => agreementId),
+            },
+          }),
       };
 
       data['additional_data'] = _.extend(data['additional_data'], this.additionalData);

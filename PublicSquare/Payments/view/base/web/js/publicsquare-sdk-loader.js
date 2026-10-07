@@ -28,11 +28,7 @@ define([], function () {
   }
 
   function resolveSdk(loadedModule) {
-    var candidates = [
-      loadedModule,
-      window.publicsquarejs,
-      window.PublicSquare
-    ];
+    var candidates = [loadedModule, window.publicsquarejs, window.PublicSquare];
 
     for (var i = 0; i < candidates.length; i += 1) {
       var sdk = normalizeSdkCandidate(candidates[i]);
@@ -121,8 +117,7 @@ define([], function () {
       return false;
     }
 
-    return script.getAttribute('data-requiremodule') !== null ||
-      script.getAttribute('data-requirecontext') !== null;
+    return script.getAttribute('data-requiremodule') !== null || script.getAttribute('data-requirecontext') !== null;
   }
 
   function installAmdGuard() {
@@ -150,7 +145,7 @@ define([], function () {
               return amdGuardOriginalAmd;
             }
             return undefined;
-          }
+          },
         });
 
         amdGuardWrappedDefine = wrapped;
@@ -199,8 +194,14 @@ define([], function () {
 
       if (result && typeof result.then === 'function') {
         return result.then(
-          function (value) { release(); return value; },
-          function (error) { release(); throw error; }
+          function (value) {
+            release();
+            return value;
+          },
+          function (error) {
+            release();
+            throw error;
+          },
         );
       }
 
@@ -229,7 +230,7 @@ define([], function () {
       function (error) {
         sdkLoadPromise = null;
         throw error;
-      }
+      },
     );
 
     return sdkLoadPromise;
@@ -245,7 +246,7 @@ define([], function () {
           });
         });
       });
-    }
+    },
   };
 
   Object.defineProperty(loader, 'cards', {
@@ -253,7 +254,7 @@ define([], function () {
     configurable: true,
     get: function () {
       return sdkReference && sdkReference.cards;
-    }
+    },
   });
 
   return loader;

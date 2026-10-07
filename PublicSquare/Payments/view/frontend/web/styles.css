@@ -8,14 +8,14 @@
  * @license   http://opensource.org/licenses/osl-3.0.php (OSL 3.0)
  * @link https://publicsquare.com/
  */
- 
+
 #publicsquare-elements-form {
-    margin-bottom: 1em;
-    border: 1px solid #ddd;
-    border-radius: 2px;
-    padding: 4px 4px 4px 12px;
+  margin-bottom: 1em;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  padding: 4px 4px 4px 12px;
 }
 
 .payment-method-vault-checkbox {
-    margin-bottom: 1em;
+  margin-bottom: 1em;
 }
