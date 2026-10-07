@@ -6,19 +6,19 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 MAGENTO_DIR="${1:-$ROOT_DIR/magento-install}"
-# Keep CLI signature aligned with other IT scripts (version/host unused here but accepted).
+# Keep CLI signature aligned with other dev scripts (version/host unused here but accepted).
 DEFAULT_MAGENTO_VERSION="2.4.8-p3"
 MAGENTO_VERSION="${MAGENTO_VERSION:-${2:-$DEFAULT_MAGENTO_VERSION}}"
 MAGENTO_HOST="${3:-magento.test}"
 
-# Ensure Magento IT install exists
+# Ensure Magento dev install exists
 if [[ ! -d "${MAGENTO_DIR}" || ! -x "${MAGENTO_DIR}/bin/cli" ]]; then
-  echo "Magento IT installation not found in '${MAGENTO_DIR}'."
-  echo "Run './bin/it-up' and './bin/it-install' first to create and configure the stack."
+  echo "Magento dev installation not found in '${MAGENTO_DIR}'."
+  echo "Run 'mise run dev:up' and 'mise run dev:install' first to create and configure the stack."
   exit 1
 fi
 
-echo "Deploying Magento sample data (IT) using Magento install at '${MAGENTO_DIR}'..."
+echo "Deploying Magento sample data (dev) using Magento install at '${MAGENTO_DIR}'..."
 cd "${MAGENTO_DIR}"
 
 ./bin/cli bin/magento sampledata:deploy

@@ -35,10 +35,10 @@ if [[ -z "${PUBLICSQUARE_PUBLIC_KEY}" || -z "${PUBLICSQUARE_SECRET_KEY}" ]]; the
   echo
 fi
 
-# Ensure Magento is already installed in the target directory (handled by bin/it-up)
+# Ensure Magento is already installed in the target directory (handled by bin/dev-up)
 if [[ ! -d "${MAGENTO_DIR}" || ! -x "${MAGENTO_DIR}/bin/magento" ]]; then
   echo "Magento installation not found in '${MAGENTO_DIR}'."
-  echo "Run './bin/it-up' first to perform the initial Magento setup."
+  echo "Run 'mise run dev:up' first to perform the initial Magento setup."
   exit 1
 fi
 
@@ -53,7 +53,7 @@ cd "${MAGENTO_DIR}"
 
 ######
 
-echo "Installing Magento (IT) using compose.yaml..."
+echo "Installing Magento (dev) using compose.yaml..."
 
 echo "Initializing pre-reqs"
 chmod +x "${MAGENTO_INIT}"
@@ -107,7 +107,7 @@ echo "Installing PublicSquare Module"
   bin/magento indexer:reindex
 "${MAGENTO_CLI}" bin/magento cache:flush
 
-echo "Deploying static content (IT)..."
+echo "Deploying static content (dev)..."
 "${MAGENTO_CLI}" \
   php -d memory_limit=2G bin/magento setup:static-content:deploy -f
 "${MAGENTO_CLI}" bin/magento cache:flush
@@ -126,7 +126,7 @@ echo "Disabling Two-Factor Auth for admin..."
   bin/magento module:disable Magento_AdminAdobeImsTwoFactorAuth Magento_TwoFactorAuth || true
 "${MAGENTO_CLI}" bin/magento cache:flush
 
-echo "Disabling Magento CAPTCHA for IT logins..."
+echo "Disabling Magento CAPTCHA for dev logins..."
 "${MAGENTO_CLI}" \
   bin/magento config:set admin/captcha/enable 0 || true
 "${MAGENTO_CLI}" \
@@ -149,7 +149,7 @@ else
     Cost
 fi
 
-echo "Disabling SMTP to avoid email send failures in IT..."
+echo "Disabling SMTP to avoid email send failures in dev..."
 "${MAGENTO_CLI}" \
   bin/magento config:set system/smtp/disable 1 || true
 
@@ -162,4 +162,4 @@ echo "Disabling SMTP to avoid email send failures in IT..."
 #  bin/magento config:set carriers/freeshipping/free_shipping_subtotal 0 && \
 #  bin/magento cache:flush"
 
-echo "IT install complete. You may now access Magento at https://${MAGENTO_HOST}"
+echo "Dev install complete. You may now access Magento at https://${MAGENTO_HOST}"
