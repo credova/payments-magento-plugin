@@ -1,0 +1,13 @@
+# docker-magento loads compose.override.yaml from magento-install/. `mise run test:selenium` links this file there.
+services:
+  # The test profile keeps Selenium off a plain `dev:up`.
+  selenium:
+    image: selenium/standalone-chromium:152.0-20260909
+    profiles: [test]
+    shm_size: 2g
+    # The browser reaches the store through the host's ports 80 and 443, as a developer does.
+    extra_hosts:
+      - 'magento.test:host-gateway'
+    ports:
+      - '4444:4444' # WebDriver
+      - '7900:7900' # noVNC: watch the browser at http://localhost:7900 (password: secret)
