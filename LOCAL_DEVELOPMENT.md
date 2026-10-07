@@ -19,7 +19,7 @@ mise run test           # unit tests
 [hk](https://hk.jdx.dev) runs the hooks in `hk.pkl`:
 
 - **pre-commit**: lints the staged files and fixes what it can. It runs phpcs, PHP compatibility, shellcheck, oxlint,
-  oxfmt, rumdl, yamlfmt, and actionlint, then scans the staged changes for secrets with betterleaks.
+  oxfmt (JS, CSS, HTML, YAML), rumdl, and actionlint, then scans the staged changes for secrets with betterleaks.
 - **commit-msg**: the message must be a conventional commit and must contain a Shortcut reference (`sc-NNNNN`).
 - **pre-push**: runs the unit tests.
 

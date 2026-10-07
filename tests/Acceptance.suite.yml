@@ -18,13 +18,16 @@ modules:
         capabilities:
           goog:chromeOptions:
             args: [
-              # "--headless",
-              # "--disable-gpu",
-              # "--no-sandbox",
-              # "--disable-dev-shm-usage",
-              "--ignore-certificate-errors",
-              #                        "--disable-software-rasterizer",
-              "--disable-extensions", "--allow-insecure-localhost", "--incognito"]
+                # "--headless",
+                # "--disable-gpu",
+                # "--no-sandbox",
+                # "--disable-dev-shm-usage",
+                '--ignore-certificate-errors',
+                #                        "--disable-software-rasterizer",
+                '--disable-extensions',
+                '--allow-insecure-localhost',
+                '--incognito',
+              ]
             #                        "--disable-features=VizDisplayCompositor"
           acceptInsecureCerts: true
     - \Codeception\Module\Asserts

@@ -2,13 +2,13 @@
 // `mise run check` / `mise run fix` run the same steps over the whole tree.
 //
 // Keep the version below in sync with the `hk` pin in mise.toml [tools].
-amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
 // phpcs needs the Composer dev dependencies.
 local vendorGuard = "test -x vendor/bin/phpcs || { echo 'Run: mise run composer:install' >&2; exit 1; }"
 
-// Steps that take a file list. Shared by pre-commit (staged files) and check/fix (whole tree).
-local linters = new Mapping<String, Step> {
+// Shared by the check, fix, and pre-commit hooks that hk creates from top-level steps.
+steps {
     ["phpcs"] {
         glob = List("PublicSquare/**/*.php")
         check = "\(vendorGuard) && vendor/bin/phpcs --standard=phpcs.xml --warning-severity=0 {{files}}"
@@ -28,7 +28,7 @@ local linters = new Mapping<String, Step> {
         check = "oxlint --deny-warnings {{files}}"
     }
     ["oxfmt"] {
-        glob = List("*.js", "*.css", "*.html")
+        glob = List("*.js", "*.css", "*.html", "*.yml", "*.yaml")
         check = "oxfmt --check {{files}}"
         fix = "oxfmt {{files}}"
     }
@@ -36,11 +36,6 @@ local linters = new Mapping<String, Step> {
         glob = List("*.md")
         check = "rumdl check {{files}}"
         fix = "rumdl fmt {{files}}"
-    }
-    ["yamlfmt"] {
-        glob = List("*.yml", "*.yaml")
-        check = "yamlfmt -lint {{files}}"
-        fix = "yamlfmt {{files}}"
     }
     // actionlint finds the workflow files itself; the glob only decides whether to run.
     ["actionlint"] {
@@ -53,11 +48,12 @@ local linters = new Mapping<String, Step> {
 local gitGenerated = "grep -qE '^(Merge|Revert) ' {{commit_msg_file}}"
 
 hooks {
+    // Inherits the top-level steps. Settings are explicit because a named hook keeps its own.
     ["pre-commit"] {
         fix = true
+        stage = true
         stash = "git"
         steps {
-            ...linters
             // Reads the index, so the stash above cannot hide anything from it.
             ["betterleaks"] {
                 check = "betterleaks git --staged --redact --no-banner"
@@ -86,14 +82,5 @@ hooks {
                 exclusive = true
             }
         }
-    }
-
-    ["fix"] {
-        fix = true
-        steps = linters
-    }
-
-    ["check"] {
-        steps = linters
     }
 }
