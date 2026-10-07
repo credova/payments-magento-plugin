@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -o errexit
-
-echo "installing magento sample data..."
-bin/cli mkdir -p /var/www/html/var/composer_home
-bin/cli cp /var/www/.composer/auth.json /var/www/html/var/composer_home/auth.json
-bin/magento sampledata:deploy

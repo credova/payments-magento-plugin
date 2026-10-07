@@ -9,9 +9,6 @@ MAGENTO_DIR="${ROOT_DIR}/magento-install"
 
 cd "${ROOT_DIR}"
 
-echo "Stopping legacy stack and removing volumes using root compose.yaml (if any)..."
-docker compose down -v --remove-orphans || true
-
 echo "Stopping and removing magento-install Docker stack (if present)..."
 if [[ -d "${MAGENTO_DIR}" && -x "${MAGENTO_DIR}/bin/removeall" ]]; then
   echo "Running magento-install/bin/removeall non-interactively..."
@@ -34,9 +31,6 @@ fi
 
 echo "Removing any remaining magento-install volumes..."
 docker volume ls -q | grep -E '^magento-install_' | xargs -r docker volume rm || true
-
-echo "Removing legacy Magento and DB volumes for this project (root compose.yaml)..."
-docker volume ls -q | grep -E 'publicsquare-magento-payments-plugin_(magento-data|db-data)' | xargs -r docker volume rm || true
 
 echo "Removing magento-install directory at project root..."
 rm -rf "${MAGENTO_DIR}"

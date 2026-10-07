@@ -76,6 +76,30 @@ description = "Delete the dev stack, its volumes, and magento-install/"
 raw = true
 run = "bin/it-reset"
 
+# Backup and restore stop the stack first, so the DB files are consistent. Run dev:up after.
+[tasks."dev:backup"]
+description = "Stop the dev stack and save its Docker volumes as tarballs (default dir: backups/)"
+depends = ["dev:down"]
+usage = 'arg "[dir]" default="backups"'
+# Guard the empty case: with no volume names, the script backs up every Docker volume.
+run = '''
+VOLUMES="$(docker volume ls -q --filter name=^magento-install_)"
+[ -n "$VOLUMES" ] || { echo "No magento-install_ volumes found."; exit 1; }
+bin/backup-volumes.sh "${usage_dir}" $VOLUMES
+'''
+
+[tasks."dev:restore"]
+description = "Stop the dev stack and restore its Docker volumes from tarballs (default dir: backups/)"
+depends = ["dev:down"]
+usage = 'arg "[dir]" default="backups"'
+run = 'bin/restore-volumes.sh "${usage_dir}"'
+
+# The docker-magento PHP image already sends mail to mailcatcher. dev:install turns Magento SMTP off.
+[tasks."dev:email"]
+description = "Turn Magento email on in the dev stack; read the mail at http://localhost:1080"
+dir = "{{config_root}}/magento-install"
+run = '. "{{config_root}}/bin/lib/clean-path" && bin/clinotty bin/magento config:set system/smtp/disable 0 && bin/clinotty bin/magento cache:flush config'
+
 [tasks."test:acceptance"]
 description = "Run the Codeception acceptance suite against the dev stack"
 depends = ["composer:install"]
