@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-bin/stopall
-docker compose rm -f
-bin/removevolumes
-bin/removenetwork

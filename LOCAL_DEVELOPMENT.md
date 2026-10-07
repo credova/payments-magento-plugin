@@ -1,7 +1,7 @@
 # Local Development Guide
 
 This document explains how to run Magento with this plugin on your machine.
-The `dev:*` mise tasks do all of the setup. Do not use the older `bin/setup*` scripts.
+The `dev:*` mise tasks do all of the setup.
 
 ## Toolchain
 
@@ -91,6 +91,9 @@ To start again with a new CA, remove that directory and the old "mkcert" certifi
 | Open a shell in the container | `mise run magento:cli -- bash` |
 | Check that the store and plugin work | `mise run dev:verify` |
 | Run the acceptance tests (needs Selenium on port 4444; the dev stack does not include it yet) | `mise run test:acceptance` |
+| Turn on email (read it at http://localhost:1080) | `mise run dev:email` |
+| Save the stack volumes to `backups/` (stops the stack) | `mise run dev:backup [dir]` |
+| Restore the stack volumes from `backups/` (stops the stack; run `dev:up` after) | `mise run dev:restore [dir]` |
 | Remove the stack and all its data | `mise run dev:reset` |
 
 The plugin source in `PublicSquare/` is mounted into the container.

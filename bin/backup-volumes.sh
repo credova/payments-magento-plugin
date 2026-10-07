@@ -6,7 +6,8 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-BACKUP_DIR="$1"
+# docker -v reads a relative path as a named volume, so make it absolute.
+BACKUP_DIR="$(mkdir -p "$1" && cd "$1" && pwd)"
 shift  # Remove the first argument (backup directory)
 
 # Create backup directory if it doesn't exist

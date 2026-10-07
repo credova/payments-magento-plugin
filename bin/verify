@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -o errexit
-
-bin/stopall
-
-rm -rf src/magento-site
-
-bin/setup
