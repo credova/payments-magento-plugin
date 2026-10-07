@@ -6,7 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 
-# Use the same targeted Magento install directory / version / host convention as bin/it-install / bin/it-up.
+# Use the same targeted Magento install directory / version / host convention as bin/dev-install / bin/dev-up.
 # Defaults:
 #   MAGENTO_DIR   -> "<repo-root>/magento-install"
 #   MAGENTO_VERSION & MAGENTO_HOST are accepted for parity but unused here (kept for consistent CLI shape).
@@ -19,13 +19,13 @@ MAGENTO_HOST="${3:-magento.test}"
 
 if [[ ! -x "${MAGENTO_DIR}/bin/cli" ]]; then
   echo "Expected '${MAGENTO_DIR}/bin/cli' to exist and be executable, but it was not found."
-  echo "Run './bin/it-up' first to provision the targeted Magento environment."
+  echo "Run 'mise run dev:up' first to provision the targeted Magento environment."
   exit 1
 fi
 
 CLI="${MAGENTO_DIR}/bin/cli"
 
-echo "Deploying Magento code to IT environment in '${MAGENTO_DIR}'..."
+echo "Deploying Magento code to dev environment in '${MAGENTO_DIR}'..."
 
 # Ensure we execute within the Magento install directory for any relative paths
 cd "${MAGENTO_DIR}"

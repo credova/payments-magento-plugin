@@ -46,21 +46,21 @@ run = "vendor/bin/phpunit -c tests/unit/phpunit.xml"
 [tasks."dev:up"]
 description = "Create and start the Magento dev stack in magento-install/"
 raw = true
-run = "bin/it-up"
+run = "bin/dev-up"
 
 [tasks."dev:down"]
 description = "Stop the Magento dev stack"
-run = "bin/it-down"
+run = "bin/dev-down"
 
 [tasks."dev:install"]
 description = "Install this plugin into the dev stack (keys from PUBLICSQUARE_PUBLIC_KEY/SECRET_KEY, else prompts)"
 raw = true
-run = "bin/it-install"
+run = "bin/dev-install"
 
 [tasks."dev:sample-data"]
 description = "Deploy Magento sample data into the dev stack"
 raw = true
-run = "bin/it-sample-data"
+run = "bin/dev-sample-data"
 
 [tasks."dev:build"]
 description = "Run dev:up, dev:install, and dev:sample-data in sequence"
@@ -69,12 +69,12 @@ run = [{ task = "dev:up" }, { task = "dev:install" }, { task = "dev:sample-data"
 [tasks."dev:verify"]
 description = "Smoke-test the dev stack: magento.test answers over HTTPS and the plugin is enabled"
 raw = true
-run = "bin/it-verify"
+run = "bin/dev-verify"
 
 [tasks."dev:reset"]
 description = "Delete the dev stack, its volumes, and magento-install/"
 raw = true
-run = "bin/it-reset"
+run = "bin/dev-reset"
 
 # Backup and restore stop the stack first, so the DB files are consistent. Run dev:up after.
 [tasks."dev:backup"]

@@ -51,7 +51,7 @@ docker context use orbstack
 
 Composer downloads Magento from `repo.magento.com`, which requires access keys.
 Get them from [Adobe Commerce Marketplace](https://commercemarketplace.adobe.com/) under **My Profile > Access Keys**.
-On the first install, `bin/it-up` asks for the keys with hidden input and saves them to `~/.composer/auth.json`, which the stack mounts into the container.
+On the first install, `bin/dev-up` asks for the keys with hidden input and saves them to `~/.composer/auth.json`, which the stack mounts into the container.
 Later installs read them from there.
 
 For scripted installs, set `ADOBE_ACCESS_PUBLIC_KEY` and `ADOBE_ACCESS_PRIVATE_KEY` in the environment instead, for example from a secret manager.
@@ -65,11 +65,11 @@ PUBLICSQUARE_PUBLIC_KEY=<public key> PUBLICSQUARE_SECRET_KEY=<secret key> mise r
 
 This task runs three scripts in sequence:
 
-1. `bin/it-up` installs Magento into `magento-install/` with [docker-magento](https://github.com/markshust/docker-magento) and starts the containers.
-2. `bin/it-install` installs the plugin, sets the API keys, and sets the store for local tests.
-3. `bin/it-sample-data` deploys the Magento sample data.
+1. `bin/dev-up` installs Magento into `magento-install/` with [docker-magento](https://github.com/markshust/docker-magento) and starts the containers.
+2. `bin/dev-install` installs the plugin, sets the API keys, and sets the store for local tests.
+3. `bin/dev-sample-data` deploys the Magento sample data.
 
-If you do not set the key variables, `bin/it-install` asks for the keys.
+If you do not set the key variables, `bin/dev-install` asks for the keys.
 Set `MAGENTO_VERSION` to install a version other than the default (`2.4.8-p3`).
 
 Open https://magento.test when the install completes.
@@ -77,7 +77,7 @@ Open https://magento.test when the install completes.
 ### HTTPS certificate
 
 The first install creates a local certificate authority (CA) with mkcert and asks for your system password to trust it.
-`bin/it-up` keeps that CA in `~/.local/share/psq-magento/mkcert/` and reuses it, so later installs do not ask again.
+`bin/dev-up` keeps that CA in `~/.local/share/psq-magento/mkcert/` and reuses it, so later installs do not ask again.
 To start again with a new CA, remove that directory and the old "mkcert" certificate in Keychain Access.
 
 ## Daily use
@@ -111,7 +111,7 @@ PUBLICSQUARE_PUBLIC_KEY=<public key> PUBLICSQUARE_SECRET_KEY=<secret key> mise r
 ## Recover from a partial install
 
 If `magento-install/src/bin/magento` exists, run `mise run dev:build` again **without** `mise run dev:reset`.
-`bin/it-up` detects the install and skips the download. Then `bin/it-install` and `bin/it-sample-data` run.
+`bin/dev-up` detects the install and skips the download. Then `bin/dev-install` and `bin/dev-sample-data` run.
 
 ## Troubleshooting
 
@@ -123,5 +123,5 @@ If `magento-install/src/bin/magento` exists, run `mise run dev:build` again **wi
 | `Magento download failed: bin/magento is missing in the phpfpm container` | Usually the access keys for `repo.magento.com` are wrong (HTTP 401), or a service did not start. Read the output above this error. | Supply the keys (see [Adobe Commerce Marketplace access keys](#adobe-commerce-marketplace-access-keys)), run `mise run dev:reset`, then install again. |
 | `exists but does not look initialized` | A previous install did not complete. | `mise run dev:up` removes the directory and installs again. To also remove old volumes, run `mise run dev:reset` first. |
 | `cannot bind tcp port :8081: address already in use` | Another process uses the phpMyAdmin port. | Set `PHPMYADMIN_PORT` to a free port, run `mise run dev:reset`, then install again. |
-| RabbitMQ `.erlang.cookie: eacces`, and OpenSearch fails as a dependency | A race on the first start with new volumes. `bin/it-up` retries the start once. | If it still fails, run `mise run dev:build` again **without** `mise run dev:reset`. |
+| RabbitMQ `.erlang.cookie: eacces`, and OpenSearch fails as a dependency | A race on the first start with new volumes. `bin/dev-up` retries the start once. | If it still fails, run `mise run dev:build` again **without** `mise run dev:reset`. |
 | `mise run dev:reset` hangs | An old `.envrc` put a relative `./bin` on `PATH`. | Pull the current `.envrc`, then run `direnv allow`. |

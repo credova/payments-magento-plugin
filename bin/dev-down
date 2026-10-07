@@ -8,14 +8,14 @@ ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 MAGENTO_DIR="${1:-$ROOT_DIR/magento-install}"
 
 if [[ ! -d "${MAGENTO_DIR}" || ! -x "${MAGENTO_DIR}/bin/stop" ]]; then
-  echo "Magento IT installation with stop script not found in '${MAGENTO_DIR}'."
-  echo "Nothing to stop. If this is unexpected, run './bin/it-up' first to create the stack."
+  echo "Magento dev installation with stop script not found in '${MAGENTO_DIR}'."
+  echo "Nothing to stop. If this is unexpected, run 'mise run dev:up' first to create the stack."
   exit 0
 fi
 
-echo "Stopping IT Magento stack in '${MAGENTO_DIR}'..."
+echo "Stopping dev Magento stack in '${MAGENTO_DIR}'..."
 cd "${MAGENTO_DIR}"
 
 ./bin/stop || true
 
-echo "IT containers stopped."
+echo "Dev containers stopped."
