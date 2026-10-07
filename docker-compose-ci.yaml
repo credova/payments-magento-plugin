@@ -14,7 +14,7 @@ services:
       opensearch:
         condition: service_healthy
     volumes:
-      - magento-data:/var/www/html  
+      - magento-data:/var/www/html
       - ./PublicSquare:/var/www/html/app/code/PublicSquare
       - ./bin/setup-cli:/usr/local/bin/setup-cli
     env_file:
@@ -29,11 +29,11 @@ services:
     env_file:
       - env/ci-stack.env
     healthcheck:
-        test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "magento", "-pmagento" ]
-        interval: 10s
-        timeout: 5s
-        retries: 3
-        start_period: 20s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "magento", "-pmagento"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
   phpmyadmin:
     platform: linux/amd64
     image: phpmyadmin/phpmyadmin

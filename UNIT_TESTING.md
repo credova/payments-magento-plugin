@@ -4,7 +4,8 @@ This document explains the unit testing setup for the PublicSquare Magento Payme
 
 ## Overview
 
-Our unit testing approach allows you to test business logic without requiring a full Magento installation or Docker setup. Tests run in milliseconds and can be executed locally with minimal dependencies.
+Our unit testing approach allows you to test business logic without requiring a full Magento installation or Docker
+setup. Tests run in milliseconds and can be executed locally with minimal dependencies.
 
 ## Architecture
 
@@ -17,7 +18,7 @@ Our unit testing approach allows you to test business logic without requiring a 
 
 ### File Structure
 
-```
+```text
 tests/unit/
 ├── bootstrap.php                    # Minimal bootstrap (just autoload)
 ├── phpunit.xml                      # PHPUnit configuration
@@ -43,18 +44,21 @@ tests/unit/
 
 ### Prerequisites
 
-- PHP 8.3.30 and Composer 2.9.7, installed by `mise install` (see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md#toolchain))
+- PHP 8.3.30 and Composer 2.9.7, installed by `mise install` (see
+  [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md#toolchain))
 - No Magento installation required
 
 ### Installation
 
 1. **Install PHP, Composer, and dependencies:**
+
    ```bash
    mise install
    mise run composer:install
    ```
 
 2. **Verify setup:**
+
    ```bash
    mise run test:unit
    ```
@@ -171,18 +175,21 @@ The `tests/unit/phpunit.xml` provides:
 
 ### Purpose
 
-Magento stubs provide minimal class definitions that allow PHPUnit to create mocks without requiring the full Magento framework.
+Magento stubs provide minimal class definitions that allow PHPUnit to create mocks without requiring the full Magento
+framework.
 
 ### Adding New Stubs
 
 When you need to mock a new Magento class:
 
 1. **Create the stub file:**
-   ```
+
+   ```text
    tests/unit/stubs/Magento/Framework/Some/NewClass.php
    ```
 
 2. **Add minimal class definition:**
+
    ```php
    <?php
    
@@ -195,6 +202,7 @@ When you need to mock a new Magento class:
    ```
 
 3. **Use in tests:**
+
    ```php
    $mock = $this->createMock(\Magento\Framework\Some\NewClass::class);
    ```
@@ -313,6 +321,8 @@ public function testApiRequestValidation(): void
 
 ## Conclusion
 
-This unit testing setup provides a solid foundation for testing the PublicSquare Payments plugin. It's fast, reliable, and doesn't require complex infrastructure. The stub-based approach allows for comprehensive testing while maintaining simplicity and maintainability.
+This unit testing setup provides a solid foundation for testing the PublicSquare Payments plugin. It's fast, reliable,
+and doesn't require complex infrastructure. The stub-based approach allows for comprehensive testing while maintaining
+simplicity and maintainability.
 
 For questions or improvements, refer to the PHPUnit documentation or the project's testing guidelines.

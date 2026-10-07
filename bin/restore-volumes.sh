@@ -35,8 +35,7 @@ for BACKUP_FILE in $BACKUPS; do
     VOLUME=$(basename "$BACKUP_FILE" .tar.gz)
     echo "Restoring volume: $VOLUME from $BACKUP_FILE"
     docker volume create "$VOLUME" >/dev/null 2>&1
-    docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" busybox tar xzf "/backup/${VOLUME}.tar.gz" -C /data
-    if [ $? -eq 0 ]; then
+    if docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" busybox tar xzf "/backup/${VOLUME}.tar.gz" -C /data; then
         echo "Restore of $VOLUME completed successfully."
     else
         echo "Failed to restore volume: $VOLUME"

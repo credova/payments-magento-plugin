@@ -8,15 +8,29 @@ The `dev:*` mise tasks do all of the setup.
 [mise](https://mise.jdx.dev) installs PHP and Composer and runs every project task. Run `mise tasks` to list them.
 
 ```bash
-mise install            # PHP 8.3.30 and Composer 2.9.7
+mise install            # PHP 8.3.30, Composer 2.9.7, and the lint tools
+mise run setup:hooks    # install the git hooks (once per clone)
 mise run lint           # phpcs (Magento2 standard) and PHP compatibility
 mise run test           # unit tests
 ```
 
+### Git hooks
+
+[hk](https://hk.jdx.dev) runs the hooks in `hk.pkl`:
+
+- **pre-commit**: lints the staged files and fixes what it can. It runs phpcs, PHP compatibility, shellcheck, oxlint,
+  oxfmt, rumdl, yamlfmt, and actionlint, then scans the staged changes for secrets with betterleaks.
+- **commit-msg**: the message must be a conventional commit and must contain a Shortcut reference (`sc-NNNNN`).
+- **pre-push**: runs the unit tests.
+
+`mise run check` runs every linter over the whole tree. `mise run fix` fixes what the linters can fix.
+
 - PHP and Composer are pinned to exact versions. Do not change them until the production versions are confirmed.
 - The PHP pin must match `config.platform.php` in `composer.json`.
-- mise compiles PHP from source. Install the build dependencies first, as listed in [vfox-php](https://github.com/jdx/vfox-php#requirements).
-- CI does not compile PHP. When `CI` is set, mise uses PHP 8.3 and Composer from `setup-php`, so CI does not pin the exact patch versions.
+- mise compiles PHP from source. Install the build dependencies first, as listed in
+  [vfox-php](https://github.com/jdx/vfox-php#requirements).
+- CI does not compile PHP. When `CI` is set, mise uses PHP 8.3 and Composer from `setup-php`, so CI does not pin the
+  exact patch versions.
 
 ## Prerequisites
 
@@ -24,7 +38,8 @@ mise run test           # unit tests
 - If `DOCKER_HOST` is set, it must point to a running engine. Unset it if it points to an engine you removed.
 - Adobe Commerce Marketplace access keys (see below).
 - PublicSquare public and secret API keys for the sandbox.
-- No other process on the host ports that the stack uses: 80, 443, 3306, 5672, 6379, 8081 (phpMyAdmin; set `PHPMYADMIN_PORT` to change it), 9200, 15672.
+- No other process on the host ports that the stack uses: 80, 443, 3306, 5672, 6379, 8081 (phpMyAdmin; set
+  `PHPMYADMIN_PORT` to change it), 9200, 15672.
 
 ### Docker engine
 
@@ -38,7 +53,8 @@ podman machine set --rootful
 podman machine start
 ```
 
-Rootful and rootless machines use separate storage. Containers and volumes that you made before the change are not visible after it.
+Rootful and rootless machines use separate storage. Containers and volumes that you made before the change are not
+visible after it.
 
 OrbStack: it binds these ports with no extra setup. Start it and select its Docker context:
 
@@ -49,13 +65,14 @@ docker context use orbstack
 
 ### Adobe Commerce Marketplace access keys
 
-Composer downloads Magento from `repo.magento.com`, which requires access keys.
-Get them from [Adobe Commerce Marketplace](https://commercemarketplace.adobe.com/) under **My Profile > Access Keys**.
-On the first install, `bin/dev-up` asks for the keys with hidden input and saves them to `~/.composer/auth.json`, which the stack mounts into the container.
-Later installs read them from there.
+Composer downloads Magento from `repo.magento.com`, which requires access keys. Get them from
+[Adobe Commerce Marketplace](https://commercemarketplace.adobe.com/) under **My Profile > Access Keys**. On the first
+install, `bin/dev-up` asks for the keys with hidden input and saves them to `~/.composer/auth.json`, which the stack
+mounts into the container. Later installs read them from there.
 
-For scripted installs, set `ADOBE_ACCESS_PUBLIC_KEY` and `ADOBE_ACCESS_PRIVATE_KEY` in the environment instead, for example from a secret manager.
-Do not type the keys on the command line, because your shell can save them in its history.
+For scripted installs, set `ADOBE_ACCESS_PUBLIC_KEY` and `ADOBE_ACCESS_PRIVATE_KEY` in the environment instead, for
+example from a secret manager. Do not type the keys on the command line, because your shell can save them in its
+history.
 
 ## First install
 
@@ -65,14 +82,15 @@ PUBLICSQUARE_PUBLIC_KEY=<public key> PUBLICSQUARE_SECRET_KEY=<secret key> mise r
 
 This task runs three scripts in sequence:
 
-1. `bin/dev-up` installs Magento into `magento-install/` with [docker-magento](https://github.com/markshust/docker-magento) and starts the containers.
+1. `bin/dev-up` installs Magento into `magento-install/` with
+   [docker-magento](https://github.com/markshust/docker-magento) and starts the containers.
 2. `bin/dev-install` installs the plugin, sets the API keys, and sets the store for local tests.
 3. `bin/dev-sample-data` deploys the Magento sample data.
 
 If you do not set the key variables, `bin/dev-install` asks for the keys.
 Set `MAGENTO_VERSION` to install a version other than the default (`2.4.8-p3`).
 
-Open https://magento.test when the install completes.
+Open <https://magento.test> when the install completes.
 
 ### HTTPS certificate
 
@@ -91,7 +109,7 @@ To start again with a new CA, remove that directory and the old "mkcert" certifi
 | Open a shell in the container | `mise run magento:cli -- bash` |
 | Check that the store and plugin work | `mise run dev:verify` |
 | Run the acceptance tests (needs Selenium on port 4444; the dev stack does not include it yet) | `mise run test:acceptance` |
-| Turn on email (read it at http://localhost:1080) | `mise run dev:email` |
+| Turn on email (read it at <http://localhost:1080>) | `mise run dev:email` |
 | Save the stack volumes to `backups/` (stops the stack) | `mise run dev:backup [dir]` |
 | Restore the stack volumes from `backups/` (stops the stack; run `dev:up` after) | `mise run dev:restore [dir]` |
 | Remove the stack and all its data | `mise run dev:reset` |

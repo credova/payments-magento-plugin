@@ -17,15 +17,14 @@ mkdir -p "$BACKUP_DIR"
 if [ "$#" -eq 0 ]; then
     VOLUMES=$(docker volume ls -q)  # Backup all volumes if none are specified
 else
-    VOLUMES="$@"
+    VOLUMES="$*"
 fi
 
 # Backup each volume
 for VOLUME in $VOLUMES; do
     BACKUP_FILE="$BACKUP_DIR/${VOLUME}.tar.gz"
     echo "Backing up volume: $VOLUME to $BACKUP_FILE"
-    docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" busybox tar czf "/backup/${VOLUME}.tar.gz" -C /data .
-    if [ $? -eq 0 ]; then
+    if docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" busybox tar czf "/backup/${VOLUME}.tar.gz" -C /data .; then
         echo "Backup of $VOLUME completed successfully."
     else
         echo "Failed to backup volume: $VOLUME"

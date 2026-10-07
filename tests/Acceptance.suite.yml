@@ -5,36 +5,33 @@
 
 actor: AcceptanceTester
 modules:
-    enabled:
-#        - PhpBrowser:
-#            url: http://magento.test/
-        - WebDriver:
-            url: http://magento.test
-            browser: chrome
-            host: 127.0.0.1
-#            host: 172.18.0.4
-            port: 4444
-            window_size: 1920x1080
-            capabilities:
-                goog:chromeOptions:
-                    args: [
-                        # "--headless",
-                        # "--disable-gpu",
-                        # "--no-sandbox",
-                        # "--disable-dev-shm-usage",
-                        "--ignore-certificate-errors",
-#                        "--disable-software-rasterizer",
-                        "--disable-extensions",
-                        "--allow-insecure-localhost",
-                        "--incognito"
-#                        "--disable-features=VizDisplayCompositor"
-                    ]
-                acceptInsecureCerts: true
-        - \Codeception\Module\Asserts
-        - \Tests\Support\Helper\DbHelper
-        - \Codeception\Module\Cli
+  enabled:
+    #        - PhpBrowser:
+    #            url: http://magento.test/
+    - WebDriver:
+        url: http://magento.test
+        browser: chrome
+        host: 127.0.0.1
+        #            host: 172.18.0.4
+        port: 4444
+        window_size: 1920x1080
+        capabilities:
+          goog:chromeOptions:
+            args: [
+              # "--headless",
+              # "--disable-gpu",
+              # "--no-sandbox",
+              # "--disable-dev-shm-usage",
+              "--ignore-certificate-errors",
+              #                        "--disable-software-rasterizer",
+              "--disable-extensions", "--allow-insecure-localhost", "--incognito"]
+            #                        "--disable-features=VizDisplayCompositor"
+          acceptInsecureCerts: true
+    - \Codeception\Module\Asserts
+    - \Tests\Support\Helper\DbHelper
+    - \Codeception\Module\Cli
 # Add Codeception\Step\Retry trait to AcceptanceTester to enable retries
 step_decorators:
-    - Codeception\Step\ConditionalAssertion
-    - Codeception\Step\TryTo
-    - Codeception\Step\Retry
+  - Codeception\Step\ConditionalAssertion
+  - Codeception\Step\TryTo
+  - Codeception\Step\Retry
