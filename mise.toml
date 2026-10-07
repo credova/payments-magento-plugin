@@ -92,7 +92,15 @@ bin/backup-volumes.sh "${usage_dir}" $VOLUMES
 description = "Stop the dev stack and restore its Docker volumes from tarballs (default dir: backups/)"
 depends = ["dev:down"]
 usage = 'arg "[dir]" default="backups"'
-run = 'bin/restore-volumes.sh "${usage_dir}"'
+# Pass only dev-stack archives. With no names, the script restores every tarball in the directory.
+run = '''
+VOLUMES=""
+for f in "${usage_dir}"/magento-install_*.tar.gz; do
+  [ -e "$f" ] && VOLUMES="$VOLUMES $(basename "$f" .tar.gz)"
+done
+[ -n "$VOLUMES" ] || { echo "No magento-install_*.tar.gz backups in ${usage_dir}."; exit 1; }
+bin/restore-volumes.sh "${usage_dir}" $VOLUMES
+'''
 
 # The docker-magento PHP image already sends mail to mailcatcher. dev:install turns Magento SMTP off.
 [tasks."dev:email"]
