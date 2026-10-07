@@ -85,11 +85,11 @@ define([
       var self = this;
 
       self.hostedFields(() => {
-        self.placeOrderWithCardId(self.publicHash);
+        self.placeOrderWithCardId();
       });
     },
 
-    placeOrderWithCardId: function (publicHash) {
+    placeOrderWithCardId: function () {
       fullScreenLoader.startLoader();
       var serviceUrl = urlBuilder.createUrl(
         customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
@@ -106,13 +106,13 @@ define([
         },
         messageList,
       )
-        .done(function (response) {
+        .done(function () {
           // Handle successful order placement
           const maskId = window.checkoutConfig.quoteData.entity_id;
           const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
           $.mage.redirect(successUrl);
         })
-        .fail(function (response) {
+        .fail(function () {
           messageList.addErrorMessage({
             message: $t('Something went wrong. Please try again or contact support for assistance.'),
           });

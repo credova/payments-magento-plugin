@@ -7,7 +7,7 @@ define(['jquery', 'publicsquare_payments'], function ($, publicsquare) {
     element = $(elementsFormSelector),
     originalOrderSubmit;
 
-  async function onSubmit(e) {
+  async function onSubmit() {
     const $form = $('#edit_form');
     try {
       $form.trigger('processStart');

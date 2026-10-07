@@ -156,7 +156,7 @@ define([
               // Sometimes the message might be JSON encoded
               const decodedMessage = JSON.parse(response.responseJSON.message);
               errorMessage = decodedMessage.message || decodedMessage;
-            } catch (e) {
+            } catch {
               // If not JSON, use the message directly
               errorMessage = response.responseJSON.message;
             }
