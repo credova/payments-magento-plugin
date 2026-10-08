@@ -295,6 +295,33 @@ const payments = loadAmdModule("PublicSquare/Payments/view/base/web/js/publicsqu
 `loadAmdModule()` stops with an error that names each dependency that has no test value.
 Set the globals that the module reads, such as `window.checkoutConfig`, in the test.
 
+### Test a Magento UI component
+
+A checkout renderer extends a Magento UI component, such as `Magento_Payment/js/view/payment/cc-form`. Give that
+dependency `uiComponent()` from `tests/js/helpers/magento.js`. It copies `defaults` and the constructor config onto the
+instance, supplies `this._super()`, and runs `initialize()`. Thus the test runs the renderer's own methods:
+
+```js
+import $ from "jquery";
+import { loadAmdModule } from "../helpers/amd.js";
+import { failedPlaceOrder, uiComponent } from "../helpers/magento.js";
+
+const Renderer = loadAmdModule(RENDERER, {
+  jquery: $,
+  "Magento_Payment/js/view/payment/cc-form": uiComponent({ validate: () => true }),
+  "Magento_Checkout/js/model/place-order": placeOrder,
+  // ...a test value for each other dependency
+});
+const renderer = new Renderer();
+```
+
+Use the real jQuery from `node_modules`, because the renderers chain jQuery Deferreds. To make the order request fail,
+use `placeOrder.mockImplementation(failedPlaceOrder(body))`. It fails the way Magento's place-order model does: it
+shows the server error in the message container that it gets, and then it rejects.
+
+A fake must do what the real Magento or RequireJS code does. If a fake does less, the test can pass while the shopper
+sees a bug.
+
 ## Integration with CI/CD
 
 ### GitHub Actions
