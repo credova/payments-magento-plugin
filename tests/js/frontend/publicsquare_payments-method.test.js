@@ -1,7 +1,7 @@
 import $ from 'jquery';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
-import { uiComponent } from '../helpers/magento.js';
+import { failedPlaceOrder, placeOrderRequest, uiComponent } from '../helpers/magento.js';
 
 const RENDERER =
   'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/publicsquare_payments-method.js';
@@ -76,11 +76,6 @@ function createRenderer() {
   return new Renderer();
 }
 
-function placeOrderRequest() {
-  const [[url, body]] = magento.placeOrder.mock.calls;
-  return { url, body };
-}
-
 function errorMessages() {
   return magento.messageList.addErrorMessage.mock.calls.map(([{ message }]) => message);
 }
@@ -118,7 +113,7 @@ describe('publicsquare_payments-method', () => {
 
       expect(magento.publicsquare.createCard).toHaveBeenCalledWith('Jane Doe', magento.publicsquare.cardElement);
       expect(magento.urlBuilder.createUrl).toHaveBeenCalledWith(GUEST_URL, { quoteId: 'quote_1' });
-      expect(placeOrderRequest().body).toEqual({
+      expect(placeOrderRequest(magento.placeOrder).body).toEqual({
         paymentMethod: {
           method: 'publicsquare_payments',
           additional_data: { cardId: 'card_1', idempotencyKey: renderer.idempotencyKey, saveCard: false },
@@ -136,7 +131,7 @@ describe('publicsquare_payments-method', () => {
       await renderer.placeOrder();
 
       expect(magento.urlBuilder.createUrl).toHaveBeenCalledWith(CUSTOMER_URL, { quoteId: 'quote_1' });
-      expect(placeOrderRequest().body).not.toHaveProperty('email');
+      expect(placeOrderRequest(magento.placeOrder).body).not.toHaveProperty('email');
       expect($.mage.redirect).toHaveBeenCalledWith('https://shop.test/publicsquare/success?refercust=mask_123');
     });
 
@@ -151,7 +146,7 @@ describe('publicsquare_payments-method', () => {
 
       await renderer.placeOrder();
 
-      expect('billingAddress' in placeOrderRequest().body).toBe(expected);
+      expect('billingAddress' in placeOrderRequest(magento.placeOrder).body).toBe(expected);
     });
 
     it('sends the checkout agreement ids and the save-card choice', async () => {
@@ -161,7 +156,7 @@ describe('publicsquare_payments-method', () => {
 
       await renderer.placeOrder();
 
-      const { paymentMethod } = placeOrderRequest().body;
+      const { paymentMethod } = placeOrderRequest(magento.placeOrder).body;
       expect(paymentMethod.extension_attributes).toEqual({ agreement_ids: ['1', '4'] });
       expect(paymentMethod.additional_data.saveCard).toBe(true);
       expect(renderer.vaultEnabler.visitAdditionalData).toHaveBeenCalledWith(paymentMethod);
@@ -208,11 +203,12 @@ describe('publicsquare_payments-method', () => {
     it.each([
       ['a plain', 'Your card was declined.', 'Your card was declined.'],
       ['a JSON-encoded', JSON.stringify({ message: 'Insufficient funds.' }), 'Insufficient funds.'],
+      ['a JSON-encoded non-message', JSON.stringify({ code: 42 }), JSON.stringify({ code: 42 })],
       ['no', undefined, 'Something went wrong. Please try again or contact support for assistance.'],
     ])('shows one error when the order fails with %s server message', async (_kind, message, expected) => {
       const renderer = createRenderer();
       const firstKey = renderer.idempotencyKey;
-      magento.placeOrder.mockReturnValue($.Deferred().reject({ responseJSON: { message } }).promise());
+      magento.placeOrder.mockImplementation(failedPlaceOrder({ message }));
 
       await renderer.placeOrder();
 
