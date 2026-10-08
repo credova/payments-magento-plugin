@@ -1,0 +1,6 @@
+# WarpBuild runners. actionlint cannot know self-hosted labels, so they are declared here.
+self-hosted-runner:
+  labels:
+    - warp-ubuntu-2404-x64-2x
+    - warp-ubuntu-2404-x64-4x
+    - warp-ubuntu-2404-x64-8x

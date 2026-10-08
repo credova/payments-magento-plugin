@@ -25,3 +25,28 @@ jobs:
       php-version: '8.3'
       # No lint-command/test-command: the shared workflow runs `mise run lint` and `mise run test`
       # when those tasks exist. Unit tests only; the Codeception suite does not run in CI.
+
+  # The one status check master requires. Cover a new job by adding it to needs; the
+  # github-meta ruleset needs no edit.
+  gate:
+    name: Gate
+    needs: [ci]
+    if: always()
+    runs-on: warp-ubuntu-2404-x64-2x
+    timeout-minutes: 5
+    steps:
+      # A skipped need passes, so a job the shared workflow turns off does not block the merge.
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "::error::a required job concluded '$result'"
+                exit 1
+                ;;
+            esac
+          done
