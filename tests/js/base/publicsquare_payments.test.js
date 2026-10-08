@@ -57,14 +57,25 @@ describe('publicsquare_payments', () => {
       expect(payments.cardElement).toBe(elements[1]);
     });
 
-    it('initializes the SDK once when a second call arrives while it loads', async () => {
-      const { loader, elements } = fakeSdkLoader();
+    it('makes a call during the SDK load wait for the mounted card element', async () => {
+      const { loader, sdk, elements } = fakeSdkLoader();
+      const { promise: sdkLoaded, resolve: finishLoad } = Promise.withResolvers();
+      loader.init.mockReturnValueOnce(sdkLoaded);
       const payments = loadPayments(loader);
+      const cardElementInCallback = [];
+      const callback = (module) => cardElementInCallback.push(module.cardElement);
 
-      await Promise.all([payments.initElements(params), payments.initElements(params)]);
+      const first = payments.initElements(params, callback);
+      const second = payments.initElements(params, callback);
+      await Promise.resolve();
+      expect(cardElementInCallback).toEqual([]);
+
+      finishLoad(sdk);
+      await Promise.all([first, second]);
 
       expect(loader.init).toHaveBeenCalledTimes(1);
       expect(elements).toHaveLength(1);
+      expect(cardElementInCallback).toEqual([elements[0], elements[0]]);
     });
 
     it('can try again after the SDK fails to initialize', async () => {
