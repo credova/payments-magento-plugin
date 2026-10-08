@@ -18,9 +18,16 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
 
     async function save() {
       const $form = $('#psq-save-to-vault');
+      const $saveButton = $('.psq-form__button--primary');
+      // One save at a time: a second click while the card tokenizes can save a duplicate card.
+      if ($saveButton.prop('disabled')) {
+        return;
+      }
+      $saveButton.prop('disabled', true);
+      let submitted = false;
       try {
         if (!$card || !$card.metadata.valid) {
-          console.warn('Invalid card! %j', $card.metadata);
+          console.warn('Invalid card! %j', $card && $card.metadata);
 
           modal({
             title: 'Error',
@@ -66,6 +73,7 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
         }
         // Submit to the Customer/Card controller.
         $form.trigger('submit');
+        submitted = true;
       } catch (err) {
         console.error('Failed to save card!', err);
         modal({
@@ -78,6 +86,11 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
             },
           },
         });
+      } finally {
+        // After a submit the page leaves. Otherwise, let the shopper fix the problem and save again.
+        if (!submitted) {
+          $saveButton.prop('disabled', false);
+        }
       }
     }
 

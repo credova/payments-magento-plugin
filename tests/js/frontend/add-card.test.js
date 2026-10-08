@@ -152,6 +152,17 @@ describe('add-card', () => {
       expect(submitted).not.toHaveBeenCalled();
     });
 
+    it('tokenizes once when the shopper clicks save twice', async () => {
+      startAddCard();
+      await openForm();
+
+      $('.psq-form__button--primary').trigger('click').trigger('click');
+      await settle();
+
+      expect(psqSdk.cards.create).toHaveBeenCalledTimes(1);
+      expect(submitted).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
       ['the vault form is not valid', () => $.fn.valid.mockReturnValue(false), 'Form information incorrect.'],
       [
@@ -168,6 +179,8 @@ describe('add-card', () => {
 
       expect(modalContent()).toEqual([message]);
       expect(submitted).not.toHaveBeenCalled();
+      // The shopper can fix the problem and save again.
+      expect($('.psq-form__button--primary').prop('disabled')).toBe(false);
     });
   });
 });
