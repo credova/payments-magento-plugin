@@ -20,9 +20,15 @@ DOCKER_MAGENTO_LIB="https://raw.githubusercontent.com/markshust/docker-magento/m
 DEV_CA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/psq-magento/mkcert"
 CONTAINER_CA_DIR="/root/.local/share/mkcert"
 
-# Start services, retrying once: RabbitMQ can fail the first start on brand-new volumes.
-__start_with_retry() {
-  "${MAGENTO_DIR}/bin/start" "$@" || { echo "Start failed; retrying once..."; sleep 5; "${MAGENTO_DIR}/bin/start" "$@"; }
+# docker-magento's bin/docker-compose loads compose.override.yaml. Link ours before any start.
+# Stop instead of replacing a developer's own override file.
+__link_override() {
+  local target="${MAGENTO_DIR}/compose.override.yaml"
+  if [[ -e "${target}" && ! -L "${target}" ]]; then
+    echo "${target} is a local file. Move its settings into docker/compose.override.yaml, then remove it." >&2
+    exit 1
+  fi
+  ln -sfn "${ROOT_DIR}/docker/compose.override.yaml" "${target}"
 }
 
 # Ensure .gitignore contains the install path
@@ -87,7 +93,8 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
   grep -v -E '^ *- ~/\.ssh/' compose.yaml > compose.yaml.tmp && mv compose.yaml.tmp compose.yaml
   # Pin images before the first boot, as bin/download does, so the stack does not pull the defaults first.
   bin/detect-versions community "${MAGENTO_VERSION}" || true
-  __start_with_retry --no-dev
+  __link_override
+  bin/start --no-dev
   # docker-magento's bin/setup-composer-auth does not read env vars or prompted keys. Save them to the mounted ~/.composer.
   if [[ -n "${ADOBE_ACCESS_PUBLIC_KEY:-}" && -n "${ADOBE_ACCESS_PRIVATE_KEY:-}" ]]; then
     echo "composer config --global http-basic.repo.magento.com ${ADOBE_ACCESS_PUBLIC_KEY} ${ADOBE_ACCESS_PRIVATE_KEY}" \
@@ -119,6 +126,7 @@ if [[ ! -x "${MAGENTO_DIR}/bin/start" ]]; then
 fi
 
 echo "Starting dev Magento stack in '${MAGENTO_DIR}'..."
-__start_with_retry
+__link_override
+bin/start
 
 echo "Dev Magento stack is starting. Use '${MAGENTO_DIR}/bin/cli' for Magento CLI commands."
