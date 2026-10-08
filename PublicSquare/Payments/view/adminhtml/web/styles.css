@@ -1,4 +1,3 @@
-
 .complex.publicsquare-financial-section .heading {
   background: url('images/publicsquare-payments-logo.png') no-repeat 0 50% / 18rem auto;
   padding-left: 20rem;
@@ -52,17 +51,15 @@
   min-width: 384px;
 }
 
-
 .psq-container {
   display: block;
 }
 .psq-container__content,
 .psq-container__header,
-.psq-container__footer
-{
+.psq-container__footer {
   display: block;
   width: 100%;
-  margin:0;
+  margin: 0;
   padding: 1em;
 }
 .psq-table {
@@ -70,7 +67,7 @@
 .psq-table__cell {
 }
 .psq-table__label {
-    font-weight: bolder;
+  font-weight: bolder;
 }
 .psq-admin-order__payment-additional-info {
   margin-top: 3rem;
