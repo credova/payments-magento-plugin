@@ -1,7 +1,7 @@
 import $ from 'jquery';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
-import { uiComponent } from '../helpers/magento.js';
+import { failedPlaceOrder, placeOrderRequest, uiComponent } from '../helpers/magento.js';
 
 const RENDERER = 'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/vault.js';
 
@@ -38,11 +38,6 @@ function createRenderer() {
   });
 }
 
-function placeOrderRequest() {
-  const [[url, body]] = magento.placeOrder.mock.calls;
-  return { url, body };
-}
-
 describe('vault', () => {
   beforeEach(() => {
     window.checkoutConfig = {
@@ -69,7 +64,7 @@ describe('vault', () => {
     expect(magento.urlBuilder.createUrl).toHaveBeenCalledWith('/guest-carts/:quoteId/payment-information', {
       quoteId: 'quote_1',
     });
-    expect(placeOrderRequest().body).toEqual({
+    expect(placeOrderRequest(magento.placeOrder).body).toEqual({
       email: 'jane@example.com',
       paymentMethod: {
         method: 'publicsquare_payments_cc_vault_1',
@@ -90,7 +85,7 @@ describe('vault', () => {
     expect(magento.urlBuilder.createUrl).toHaveBeenCalledWith('/carts/mine/payment-information', {
       quoteId: 'quote_1',
     });
-    expect(placeOrderRequest().body).not.toHaveProperty('email');
+    expect(placeOrderRequest(magento.placeOrder).body).not.toHaveProperty('email');
     expect($.mage.redirect).toHaveBeenCalledWith('https://shop.test/publicsquare/success?refercust=mask_123');
   });
 
@@ -100,22 +95,22 @@ describe('vault', () => {
 
     renderer.placeOrder();
 
-    expect(placeOrderRequest().body.paymentMethod.extension_attributes).toEqual({ agreement_ids: ['2'] });
+    expect(placeOrderRequest(magento.placeOrder).body.paymentMethod.extension_attributes).toEqual({
+      agreement_ids: ['2'],
+    });
   });
 
   it('shows an error and stays on the page when the order fails', () => {
     const renderer = createRenderer();
-    magento.placeOrder.mockReturnValue(
-      $.Deferred()
-        .reject({ responseJSON: { message: 'declined' } })
-        .promise(),
-    );
+    const firstKey = renderer.idempotencyKey;
+    magento.placeOrder.mockImplementation(failedPlaceOrder({ message: 'declined' }));
 
     renderer.placeOrder();
 
     expect(magento.messageList.addErrorMessage).toHaveBeenCalledExactlyOnceWith({
       message: 'Something went wrong. Please try again or contact support for assistance.',
     });
+    expect(renderer.idempotencyKey).not.toBe(firstKey);
     expect(magento.fullScreenLoader.stopLoader).toHaveBeenCalled();
     expect($.mage.redirect).not.toHaveBeenCalled();
   });

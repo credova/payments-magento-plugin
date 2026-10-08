@@ -29,6 +29,10 @@ define([
 ) {
   'use strict';
 
+  // Magento's place-order shows the raw server error in the message container it gets. This one
+  // shows nothing, so the shopper sees only the renderer's message. A 401 still goes to login.
+  const placeOrderMessages = { addErrorMessage: () => true };
+
   return VaultComponent.extend({
     defaults: {
       template: 'Magento_Vault/payment/form',
@@ -90,6 +94,7 @@ define([
     },
 
     placeOrderWithCardId: function () {
+      var self = this;
       fullScreenLoader.startLoader();
       var serviceUrl = urlBuilder.createUrl(
         customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
@@ -104,7 +109,7 @@ define([
           ...(!customer.isLoggedIn() && { email: quote.guestEmail }),
           paymentMethod: this.getData(),
         },
-        messageList,
+        placeOrderMessages,
       )
         .done(function () {
           // Handle successful order placement
@@ -113,6 +118,8 @@ define([
           $.mage.redirect(successUrl);
         })
         .fail(function () {
+          // A retry with the same key would replay the failed payment.
+          self.idempotencyKey = self.generateIdempotencyKey();
           messageList.addErrorMessage({
             message: $t('Something went wrong. Please try again or contact support for assistance.'),
           });
