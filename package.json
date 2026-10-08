@@ -1,0 +1,13 @@
+{
+  "name": "publicsquare-payments-magento-js-tests",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "30.0.1",
+    "vitest": "5.0.0"
+  }
+}

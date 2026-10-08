@@ -267,6 +267,34 @@ When you need to mock a new Magento class:
 ./vendor/bin/phpunit -c tests/unit/phpunit.xml --testdox --filter testMethodName
 ```
 
+## JavaScript Unit Tests
+
+The JS tests use [Vitest](https://vitest.dev) with jsdom, the same tools as plugin-gateway. They run the plugin's
+RequireJS modules without RequireJS or Magento.
+
+```bash
+mise run test:js                       # install the JS dependencies, then run the tests
+mise run test:js -- --watch            # run again when a file changes
+```
+
+`mise run test` runs the JS tests first, then the PHP tests. CI runs `mise run test`.
+
+### Write a JS test
+
+Put the test in `tests/js/`, in a path that matches the module under `view/`. Load the module with `loadAmdModule()`
+from `tests/js/helpers/amd.js`. Give it a test value for each AMD dependency that the module names:
+
+```js
+import { loadAmdModule } from "../helpers/amd.js";
+
+const payments = loadAmdModule("PublicSquare/Payments/view/base/web/js/publicsquare_payments.js", {
+  publicsquarejs: fakeSdk,
+});
+```
+
+`loadAmdModule()` stops with an error that names each dependency that has no test value.
+Set the globals that the module reads, such as `window.checkoutConfig`, in the test.
+
 ## Integration with CI/CD
 
 ### GitHub Actions

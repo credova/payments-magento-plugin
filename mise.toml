@@ -16,6 +16,8 @@ actionlint = "1.7.12"
 betterleaks = "1.8.1"
 bun = "1.4.2"
 hk = "2.5.0"
+# Vitest runs on Node (24 LTS).
+node = "24.21.0"
 "npm:oxfmt" = "0.72.0"
 oxlint = "1.84.0"
 rumdl = "0.2.78"
@@ -62,14 +64,25 @@ depends = ["composer:install"]
 run = "hk fix --all"
 
 [tasks.test]
-description = "Run the unit tests with testdox output (extra args go to phpunit)"
-depends = ["composer:install"]
+description = "Run the JS and PHP unit tests (extra args go to phpunit)"
+depends = ["composer:install", "test:js"]
 run = "vendor/bin/phpunit -c tests/unit/phpunit.xml --testdox"
 
 [tasks."test:unit"]
 description = "Run the unit tests with compact output (extra args go to phpunit)"
 depends = ["composer:install"]
 run = "vendor/bin/phpunit -c tests/unit/phpunit.xml"
+
+[tasks."js:install"]
+description = "Install the JS test dependencies from bun.lock"
+run = "bun install --frozen-lockfile"
+sources = ["package.json", "bun.lock"]
+outputs = ["node_modules/.bin/vitest"]
+
+[tasks."test:js"]
+description = "Run the JS unit tests with Vitest (extra args go to vitest)"
+depends = ["js:install"]
+run = "node_modules/.bin/vitest run"
 
 # Local dev stack: Magento in magento-install/, created by markshust/docker-magento.
 [tasks."dev:up"]

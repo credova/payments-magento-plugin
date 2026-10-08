@@ -11,7 +11,7 @@ The `dev:*` mise tasks do all of the setup.
 mise install            # PHP 8.3.30, Composer 2.9.7, and the lint tools
 mise run setup:hooks    # install the git hooks (once per clone)
 mise run lint           # phpcs (Magento2 standard) and PHP compatibility
-mise run test           # unit tests
+mise run test           # JS and PHP unit tests
 ```
 
 ### Git hooks
@@ -21,7 +21,7 @@ mise run test           # unit tests
 - **pre-commit**: lints the staged files and fixes what it can. It runs phpcs, PHP compatibility, shellcheck, oxlint,
   oxfmt (JS, CSS, HTML, YAML), rumdl, and actionlint, then scans the staged changes for secrets with betterleaks.
 - **commit-msg**: the message must be a conventional commit and must contain a Shortcut reference (`sc-NNNNN`).
-- **pre-push**: runs the unit tests.
+- **pre-push**: runs the PHP and JS unit tests.
 
 `mise run check` runs every linter over the whole tree. `mise run fix` fixes what the linters can fix.
 

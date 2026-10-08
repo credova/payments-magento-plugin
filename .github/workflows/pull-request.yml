@@ -1,8 +1,8 @@
 name: Pull Request
 
+# Every PR, including stacked PRs that target another PR's branch.
 on:
   pull_request:
-    branches: [master]
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
