@@ -137,9 +137,19 @@ description = "Turn Magento email on in the dev stack; read the mail at http://l
 dir = "{{config_root}}/magento-install"
 run = '. "{{config_root}}/bin/lib/clean-path" && bin/clinotty bin/magento config:set system/smtp/disable 0 && bin/clinotty bin/magento cache:flush config'
 
+[tasks."test:selenium"]
+description = "Start the Selenium container in the dev stack (WebDriver on :4444, browser view on http://localhost:7900)"
+dir = "{{config_root}}/magento-install"
+# Links the override on each run, so installs from before this task get it too.
+run = '''
+. "{{config_root}}/bin/lib/clean-path"
+ln -sfn "{{config_root}}/docker/compose.override.yaml" compose.override.yaml
+bin/docker-compose --profile test up -d --wait selenium
+'''
+
 [tasks."test:acceptance"]
-description = "Run the Codeception acceptance suite against the dev stack"
-depends = ["composer:install"]
+description = "Run the Codeception acceptance suite against the dev stack (starts Selenium)"
+depends = ["composer:install", "test:selenium"]
 run = "vendor/bin/codecept run tests/Acceptance/"
 
 # Pass-through commands into the running dev stack. Extra args go to the command.
