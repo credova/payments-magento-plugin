@@ -10,10 +10,13 @@ describe('publicsquare-sdk-loader', () => {
 
   it('loads the SDK with RequireJS and initializes it with the API key', async () => {
     const sdk = { init: vi.fn((apiKey) => ({ apiKey })) };
-    window.require = (modules, onLoad) => onLoad(sdk);
+    const requireJs = vi.fn((modules, onLoad) => onLoad(sdk));
+    window.require = requireJs;
 
     const loader = loadAmdModule(LOADER);
 
     await expect(loader.init('pk_test_key')).resolves.toEqual({ apiKey: 'pk_test_key' });
+    // Match the host only, so an SDK version bump does not break the test.
+    expect(requireJs.mock.calls[0][0]).toEqual([expect.stringMatching(/^https:\/\/js\.publicsquare\.com\//)]);
   });
 });
