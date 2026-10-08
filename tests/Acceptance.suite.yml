@@ -6,29 +6,20 @@
 actor: AcceptanceTester
 modules:
   enabled:
-    #        - PhpBrowser:
-    #            url: http://magento.test/
     - WebDriver:
         url: http://magento.test
         browser: chrome
+        # Selenium runs in the dev stack (mise run test:selenium) and publishes WebDriver on this port.
         host: 127.0.0.1
-        #            host: 172.18.0.4
         port: 4444
         window_size: 1920x1080
         capabilities:
           goog:chromeOptions:
-            args: [
-                # "--headless",
-                # "--disable-gpu",
-                # "--no-sandbox",
-                # "--disable-dev-shm-usage",
-                '--ignore-certificate-errors',
-                #                        "--disable-software-rasterizer",
-                '--disable-extensions',
-                '--allow-insecure-localhost',
-                '--incognito',
-              ]
-            #                        "--disable-features=VizDisplayCompositor"
+            args:
+              - '--ignore-certificate-errors'
+              - '--disable-extensions'
+              - '--allow-insecure-localhost'
+              - '--incognito'
           acceptInsecureCerts: true
     - \Codeception\Module\Asserts
     - \Tests\Support\Helper\DbHelper

@@ -16,6 +16,7 @@ fi
 echo "Stopping dev Magento stack in '${MAGENTO_DIR}'..."
 cd "${MAGENTO_DIR}"
 
-./bin/stop || true
+# Also stop the services in the test profile (Selenium).
+COMPOSE_PROFILES="test" ./bin/stop || true
 
 echo "Dev containers stopped."
