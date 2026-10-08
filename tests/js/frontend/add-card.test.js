@@ -38,7 +38,12 @@ function startAddCard(config = { publicKey: 'pk_test_key', cardInputCustomizatio
     },
   };
   modal = vi.fn();
-  loadAmdModule(ADD_CARD, { jquery: $, publicsquarejs: psqSdk, 'Magento_Ui/js/modal/alert': modal })(config);
+  loadAmdModule(ADD_CARD, {
+    jquery: $,
+    publicsquarejs: psqSdk,
+    'Magento_Ui/js/modal/alert': modal,
+    'mage/validation': {},
+  })(config);
   return cardElement;
 }
 
@@ -106,6 +111,34 @@ describe('add-card', () => {
       await openForm();
       expect(isFormHidden()).toBe(false);
       expect(psqSdk.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('mounts the card element once when the shopper clicks again while the SDK loads', async () => {
+      const cardElement = startAddCard();
+      let loadSdk;
+      psqSdk.init.mockImplementationOnce(() => new Promise((resolve) => (loadSdk = resolve)));
+
+      await openForm();
+      await openForm();
+      await openForm();
+      loadSdk(sdk);
+      await settle();
+
+      expect(isFormHidden()).toBe(false);
+      expect(psqSdk.init).toHaveBeenCalledTimes(1);
+      expect(cardElement.mount).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets the shopper open the form again after the SDK fails to load', async () => {
+      const cardElement = startAddCard();
+      psqSdk.init.mockRejectedValueOnce(new Error('offline'));
+
+      await openForm();
+      await openForm();
+      await openForm();
+
+      expect(psqSdk.init).toHaveBeenCalledTimes(2);
+      expect(cardElement.mount).toHaveBeenCalledTimes(1);
     });
 
     it('hides the form on cancel, and the next click shows it', async () => {

@@ -2,7 +2,7 @@
  * Adds a card to the customer's saved cards on the My Account page. add-card.phtml starts it with
  * x-magento-init and passes the public key and the card input customization JSON.
  */
-define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, psqSdk, modal) {
+define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert', 'mage/validation'], function ($, psqSdk, modal) {
   'use strict';
 
   return function (config) {
@@ -12,6 +12,7 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
     const cardInputCustomization = JSON.parse(cardInputCustomizationJSON || '{}');
     let psq;
     let $modal;
+    let cardReady;
 
     // cc elements bound by psq payments js
     let $card;
@@ -27,7 +28,7 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
       let submitted = false;
       try {
         if (!$card || !$card.metadata.valid) {
-          console.warn('Invalid card! %j', $card && $card.metadata);
+          console.warn('Invalid card! %o', $card && $card.metadata);
 
           modal({
             title: 'Error',
@@ -42,7 +43,7 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
           return;
         }
         const cardholderName = $('#psq-form-cardholder-name').val();
-        console.log('Creating new card for cardholder %s', cardholderName);
+        console.log('Creating new card...');
         const card = await psqSdk.cards.create({ cardholder_name: cardholderName, card: $card });
         console.log('Card created. Posting to vault...');
 
@@ -99,25 +100,34 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert'], function ($, p
       $modal.addClass('psq-add-card__form--hidden');
     }
 
-    async function openForm() {
+    async function mountCard() {
+      psq = await psqSdk.init(psqPubKey);
+      $card = psq.createCardElement(cardInputCustomization);
+      $card.mount('#psq-card-element');
+      $('.psq-form__button--cancel').click(() => {
+        formVisible = false;
+        closeForm();
+      });
+      $('.psq-form__button--primary').click(async () => {
+        await save();
+      });
+    }
+
+    function openForm() {
       // Add class first
       if (!$modal) {
         $modal = $('.psq-add-card__form');
       }
       $modal.removeClass('psq-add-card__form--hidden');
 
-      if (!$card) {
-        psq = await psqSdk.init(psqPubKey);
-        $card = psq.createCardElement(cardInputCustomization);
-        $card.mount('#psq-card-element');
-        $('.psq-form__button--cancel').click(() => {
-          formVisible = false;
-          closeForm();
-        });
-        $('.psq-form__button--primary').click(async () => {
-          await save();
+      // Mount once, also when the shopper clicks again while the SDK loads.
+      if (!cardReady) {
+        cardReady = mountCard().catch((err) => {
+          cardReady = null;
+          console.error('Failed to load the card form!', err);
         });
       }
+      return cardReady;
     }
 
     $('#psq-cc-add-button').click(async () => {
