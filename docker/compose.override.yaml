@@ -9,5 +9,5 @@ services:
     extra_hosts:
       - 'magento.test:host-gateway'
     ports:
-      - '4444:4444' # WebDriver
-      - '7900:7900' # noVNC: watch the browser at http://localhost:7900 (password: secret)
+      - '127.0.0.1:4444:4444' # WebDriver
+      - '127.0.0.1:7900:7900' # noVNC: watch the browser at http://localhost:7900 (password: secret)
