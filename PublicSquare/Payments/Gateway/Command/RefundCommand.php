@@ -35,6 +35,7 @@ class RefundCommand implements CommandInterface
         $this->logger->debug('Refund command started');
         $payment = $commandSubject['payment']->getPayment();
         $order = $payment->getOrder();
+        // Half up rounding matches Magento's behavior
         $amount = round($commandSubject['amount'] * 100);
         $transactionId = $this->getTransactionId($payment);
 
