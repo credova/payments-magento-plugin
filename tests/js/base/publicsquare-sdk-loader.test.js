@@ -10,6 +10,33 @@ function fakeRequireJs(sdk) {
   return requireJs;
 }
 
+/**
+ * A RequireJS stand-in that keeps RequireJS's registry. A require for a URL that is still loading
+ * or that failed does not fetch it again until undef(url). Checked against RequireJS 2.3.7.
+ *
+ * @param {(onLoad: Function, onError: Function) => void} fetchScript Finishes one fetch of the SDK.
+ */
+function registryRequireJs(fetchScript) {
+  const registry = new Map();
+  const requireJs = vi.fn(([url], onLoad, onError) => {
+    if (registry.get(url) === 'failed') {
+      onError(new Error('scripterror'));
+      return;
+    }
+    if (registry.get(url) === 'loading') {
+      return;
+    }
+    registry.set(url, 'loading');
+    fetchScript(onLoad, () => {
+      registry.set(url, 'failed');
+      onError(new Error('scripterror'));
+    });
+  });
+  requireJs.undef = (url) => registry.delete(url);
+  window.require = requireJs;
+  return requireJs;
+}
+
 function setCurrentScript(script) {
   Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
 }
@@ -106,17 +133,18 @@ describe('publicsquare-sdk-loader', () => {
       );
     });
 
-    it('rejects when the script fails to load, then retries on the next init', async () => {
+    it('rejects when the script fails to load, then fetches it again on the next init', async () => {
       const sdk = { init: vi.fn() };
-      window.require = vi
+      const fetchScript = vi
         .fn()
-        .mockImplementationOnce((modules, onLoad, onError) => onError(new Error('net::ERR_FAILED')))
-        .mockImplementationOnce((modules, onLoad) => onLoad(sdk));
+        .mockImplementationOnce((onLoad, onError) => onError())
+        .mockImplementationOnce((onLoad) => onLoad(sdk));
+      registryRequireJs(fetchScript);
       const loader = loadAmdModule(LOADER);
 
       await expect(loader.init('pk_test_key')).rejects.toThrow('Unable to load PublicSquare SDK script.');
       await expect(loader.init('pk_test_key')).resolves.toBe(sdk);
-      expect(window.require).toHaveBeenCalledTimes(2);
+      expect(fetchScript).toHaveBeenCalledTimes(2);
     });
 
     it('rejects when the script does not load in time', async () => {
@@ -129,6 +157,25 @@ describe('publicsquare-sdk-loader', () => {
       await vi.advanceTimersByTimeAsync(50);
 
       await assertion;
+    });
+
+    it('fetches the script again on the next init after a timeout', async () => {
+      vi.useFakeTimers();
+      window.publicsquareSdkLoadTimeoutMs = 50;
+      const sdk = { init: vi.fn() };
+      const fetchScript = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce((onLoad) => onLoad(sdk));
+      registryRequireJs(fetchScript);
+      const loader = loadAmdModule(LOADER);
+
+      const first = expect(loader.init('pk_test_key')).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(50);
+      await first;
+
+      await expect(loader.init('pk_test_key')).resolves.toBe(sdk);
+      expect(fetchScript).toHaveBeenCalledTimes(2);
     });
 
     it('ignores a timeout override that is not a positive number', async () => {
