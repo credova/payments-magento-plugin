@@ -15,6 +15,11 @@ use PublicSquare\Payments\Logger\Logger;
 
 class RefundCommandTest extends TestCase
 {
+    // PublicSquare IDs start with a type prefix: pmt_ for a payment, rfd_ for a refund.
+    private const PAYMENT_ID = 'pmt_payment';
+    private const REFUND_ID = 'rfd_refund';
+    private const CHARGE_ID_FROM_ANOTHER_GATEWAY = 'ch_charge';
+
     private PaymentRefundFactory $paymentRefundFactory;
     private RefundCommand $command;
 
@@ -44,24 +49,27 @@ class RefundCommandTest extends TestCase
         $this->paymentRefundFactory->expects($this->once())
             ->method('create')
             ->with($this->callback(fn (array $data) => $data['amount'] === (float) $cents))
-            ->willReturn($this->refundResponse(['id' => 'rfd_1']));
+            ->willReturn($this->refundResponse(['id' => self::REFUND_ID]));
 
-        $this->command->execute($this->commandSubject(new FakePayment('pmt_1'), $amount));
+        $this->command->execute($this->commandSubject(new FakePayment(self::PAYMENT_ID), $amount));
     }
 
     public function testSavesTheRefundIdOnThePayment(): void
     {
-        $payment = new FakePayment('pmt_1');
-        $this->paymentRefundFactory->method('create')->willReturn($this->refundResponse(['id' => 'rfd_1']));
+        $payment = new FakePayment(self::PAYMENT_ID);
+        $this->paymentRefundFactory->method('create')->willReturn($this->refundResponse(['id' => self::REFUND_ID]));
 
         $this->command->execute($this->commandSubject($payment, 10.00));
 
-        $this->assertSame('rfd_1', $payment->getAdditionalInformation()[Constants::REFUND_ID_KEY]);
+        $this->assertSame(self::REFUND_ID, $payment->getAdditionalInformation()[Constants::REFUND_ID_KEY]);
     }
 
     public function testRefundsThePaymentIdFromASuffixedTransactionId(): void
     {
-        $this->assertSame('pmt_abc123', $this->command->getTransactionId(new FakePayment('pmt_abc123-capture')));
+        $this->assertSame(
+            self::PAYMENT_ID,
+            $this->command->getTransactionId(new FakePayment(self::PAYMENT_ID . '-capture')),
+        );
     }
 
     public function testRejectsAnOnlineRefundForANonPublicSquareTransaction(): void
@@ -71,7 +79,7 @@ class RefundCommandTest extends TestCase
         $this->expectException(CommandException::class);
         $this->expectExceptionMessage('The payment can only be refunded via the PublicSquare Dashboard.');
 
-        $this->command->execute($this->commandSubject(new FakePayment('ch_123'), 10.00));
+        $this->command->execute($this->commandSubject(new FakePayment(self::CHARGE_ID_FROM_ANOTHER_GATEWAY), 10.00));
     }
 
     private function refundResponse(array $data): PaymentRefund
