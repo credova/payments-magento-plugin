@@ -23,6 +23,7 @@ define([
   'Magento_Ui/js/model/messageList',
   'Magento_Customer/js/model/customer',
   'Magento_Checkout/js/model/place-order',
+  'underscore',
 ], function (
   $,
   Component,
@@ -37,6 +38,7 @@ define([
   messageList,
   customer,
   placeOrderService,
+  _,
 ) {
   'use strict';
 

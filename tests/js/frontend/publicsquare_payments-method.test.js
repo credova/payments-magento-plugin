@@ -72,6 +72,7 @@ function createRenderer() {
     'Magento_Ui/js/model/messageList': magento.messageList,
     'Magento_Customer/js/model/customer': magento.customer,
     'Magento_Checkout/js/model/place-order': magento.placeOrder,
+    underscore: { extend: Object.assign },
   });
   return new Renderer();
 }
@@ -83,8 +84,6 @@ function errorMessages() {
 describe('publicsquare_payments-method', () => {
   beforeEach(() => {
     window.checkoutConfig = checkoutConfig();
-    // The renderer calls _.extend without listing underscore as a dependency; Magento provides the global.
-    globalThis._ = { extend: Object.assign };
     $.mage = { redirect: vi.fn() };
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -92,7 +91,6 @@ describe('publicsquare_payments-method', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete window.checkoutConfig;
-    delete globalThis._;
     delete $.mage;
   });
 

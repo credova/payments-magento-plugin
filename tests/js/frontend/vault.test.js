@@ -28,6 +28,7 @@ function createRenderer() {
     'mage/translate': (text) => text,
     'Magento_Customer/js/model/customer': magento.customer,
     'Magento_Checkout/js/model/place-order': magento.placeOrder,
+    underscore: { extend: Object.assign },
     'Magento_Checkout/js/model/quote': magento.quote,
   });
   // Magento passes the saved card's code and hash, and resolves hostedFields to the card renderer.
@@ -45,14 +46,11 @@ describe('vault', () => {
       quoteData: { entity_id: 'mask_123' },
       isCustomerLoggedIn: false,
     };
-    // The renderer calls _.extend without listing underscore as a dependency; Magento provides the global.
-    globalThis._ = { extend: Object.assign };
     $.mage = { redirect: vi.fn() };
   });
 
   afterEach(() => {
     delete window.checkoutConfig;
-    delete globalThis._;
     delete $.mage;
   });
 

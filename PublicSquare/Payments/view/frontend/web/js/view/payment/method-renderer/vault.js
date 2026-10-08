@@ -15,6 +15,7 @@ define([
   'Magento_Customer/js/model/customer',
   'Magento_Checkout/js/model/place-order',
   'Magento_Checkout/js/model/quote',
+  'underscore',
 ], function (
   $,
   VaultComponent,
@@ -26,6 +27,7 @@ define([
   customer,
   placeOrderService,
   quote,
+  _,
 ) {
   'use strict';
 
