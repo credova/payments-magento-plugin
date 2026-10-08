@@ -6,10 +6,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source "${DIR}/lib/clean-path"
 ROOT_DIR="$( cd "${DIR}/.." >/dev/null 2>&1 && pwd )"
 MAGENTO_DIR="${1:-$ROOT_DIR/magento-install}"
-# Keep CLI signature aligned with other dev scripts (version/host unused here but accepted).
-DEFAULT_MAGENTO_VERSION="2.4.8-p3"
-MAGENTO_VERSION="${MAGENTO_VERSION:-${2:-$DEFAULT_MAGENTO_VERSION}}"
-MAGENTO_HOST="${3:-magento.test}"
 
 # Ensure Magento dev install exists
 if [[ ! -d "${MAGENTO_DIR}" || ! -x "${MAGENTO_DIR}/bin/cli" ]]; then

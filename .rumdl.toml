@@ -1,0 +1,10 @@
+[global]
+line-length = 120
+exclude = ["magento-install", "vendor"]
+
+[MD013]
+reflow = true
+
+# The PR title is the H1, so the template body starts at H2.
+[per-file-ignores]
+".github/pull_request_template.md" = ["MD041"]

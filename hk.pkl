@@ -1,0 +1,86 @@
+// Git hooks and repo-wide linting. `mise run setup:hooks` installs the hooks;
+// `mise run check` / `mise run fix` run the same steps over the whole tree.
+//
+// Keep the version below in sync with the `hk` pin in mise.toml [tools].
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+
+// phpcs needs the Composer dev dependencies.
+local vendorGuard = "test -x vendor/bin/phpcs || { echo 'Run: mise run composer:install' >&2; exit 1; }"
+
+// Shared by the check, fix, and pre-commit hooks that hk creates from top-level steps.
+steps {
+    ["phpcs"] {
+        glob = List("PublicSquare/**/*.php")
+        check = "\(vendorGuard) && vendor/bin/phpcs --standard=phpcs.xml --warning-severity=0 {{files}}"
+        // phpcbf exits 1 when it fixed everything, and 2 when errors remain.
+        fix = "\(vendorGuard) && { vendor/bin/phpcbf --standard=phpcs.xml {{files}} || [ $? -eq 1 ]; }"
+    }
+    ["phpcs-compat"] {
+        glob = List("PublicSquare/**/*.php")
+        check = "\(vendorGuard) && vendor/bin/phpcs --standard=phpcs-compat.xml {{files}}"
+    }
+    ["shellcheck"] {
+        glob = List("bin/**", "*.sh")
+        check = "shellcheck -x {{files}}"
+    }
+    ["oxlint"] {
+        glob = List("*.js")
+        check = "oxlint --deny-warnings {{files}}"
+    }
+    ["oxfmt"] {
+        glob = List("*.js", "*.css", "*.html", "*.yml", "*.yaml")
+        check = "oxfmt --check {{files}}"
+        fix = "oxfmt {{files}}"
+    }
+    ["rumdl"] {
+        glob = List("*.md")
+        check = "rumdl check {{files}}"
+        fix = "rumdl fmt {{files}}"
+    }
+    // actionlint finds the workflow files itself; the glob only decides whether to run.
+    ["actionlint"] {
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+        check = "actionlint"
+    }
+}
+
+// True for the subjects that `git merge` and `git revert` write themselves.
+local gitGenerated = "grep -qE '^(Merge|Revert) ' {{commit_msg_file}}"
+
+hooks {
+    // Inherits the top-level steps. Settings are explicit because a named hook keeps its own.
+    ["pre-commit"] {
+        fix = true
+        stage = true
+        stash = "git"
+        steps {
+            // Reads the index, so the stash above cannot hide anything from it.
+            ["betterleaks"] {
+                check = "betterleaks git --staged --redact --no-banner"
+            }
+        }
+    }
+
+    ["commit-msg"] {
+        steps {
+            ["conventional-commit"] {
+                check = "\(gitGenerated) || hk util check-conventional-commit {{commit_msg_file}}"
+            }
+            // Bypass for a one-off: HK_SKIP_STEPS=shortcut-ref git commit
+            ["shortcut-ref"] {
+                check = "\(gitGenerated) || git stripspace --strip-comments < {{commit_msg_file}} | grep -qE 'sc-[0-9]+'"
+            }
+        }
+    }
+
+    // Kept off pre-commit so commits stay fast. Measured: about 5s.
+    ["pre-push"] {
+        steps {
+            ["phpunit"] {
+                glob = List("PublicSquare/**/*.php", "tests/unit/**", "composer.json", "composer.lock")
+                check = "\(vendorGuard) && vendor/bin/phpunit -c tests/unit/phpunit.xml"
+                exclusive = true
+            }
+        }
+    }
+}

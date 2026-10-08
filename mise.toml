@@ -1,11 +1,25 @@
 min_version = "2026.7.4"
 
+[settings]
+# Install npm: tools (oxfmt) with bun, so no Node runtime is needed.
+npm.package_manager = "bun"
+
+[tools]
 # Exact pins. Do not bump until the production versions are confirmed.
 # PHP must match config.platform.php in composer.json.
-[tools]
 # vfox-php compiles from source; on CI "system" uses setup-php's PHP instead.
 # postinstall pins Composer (the plugin installs the latest). The plugin omits ext-zip; php-webdriver needs it.
 php = { version = "{% if env.CI is defined %}system{% else %}8.3.30{% endif %}", install_env = { PHP_EXTRA_CONFIGURE_OPTIONS = "--with-zip" }, postinstall = '"$MISE_TOOL_INSTALL_PATH/bin/composer" self-update --no-interaction 2.9.7' }
+
+# Hook and lint tools (hk.pkl). Keep the hk pin in sync with the `amends` version in hk.pkl.
+actionlint = "1.7.12"
+betterleaks = "1.8.1"
+bun = "1.4.2"
+hk = "2.5.0"
+"npm:oxfmt" = "0.72.0"
+oxlint = "1.84.0"
+rumdl = "0.2.78"
+shellcheck = "0.11.0"
 
 [tasks."composer:install"]
 description = "Install Composer dependencies from composer.lock"
@@ -31,6 +45,21 @@ run = "vendor/bin/phpcs --standard=phpcs-compat.xml"
 description = "Fix coding standard violations that phpcbf can fix"
 depends = ["composer:install"]
 run = "vendor/bin/phpcbf --standard=phpcs.xml"
+
+[tasks."setup:hooks"]
+description = "Install the git hooks (hk.pkl): linters on commit, commit-message checks, unit tests on push"
+# --mise wraps each hook in `mise x`, so the hooks work in a shell that has not activated mise.
+run = "hk install --mise"
+
+[tasks.check]
+description = "Run every hk linter over the whole tree (PHP, shell, JS/CSS/HTML, Markdown, YAML, workflows)"
+depends = ["composer:install"]
+run = "hk check --all"
+
+[tasks.fix]
+description = "Fix what the hk linters can fix over the whole tree"
+depends = ["composer:install"]
+run = "hk fix --all"
 
 [tasks.test]
 description = "Run the unit tests with testdox output (extra args go to phpunit)"

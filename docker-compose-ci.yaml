@@ -4,7 +4,7 @@ services:
     platform: linux/amd64
     image: ghcr.io/alexcheng1982/docker-magento2:2.4.6-p5
     ports:
-      - "80:80"
+      - '80:80'
     links:
       - db
       - opensearch
@@ -14,7 +14,7 @@ services:
       opensearch:
         condition: service_healthy
     volumes:
-      - magento-data:/var/www/html  
+      - magento-data:/var/www/html
       - ./PublicSquare:/var/www/html/app/code/PublicSquare
       - ./bin/setup-cli:/usr/local/bin/setup-cli
     env_file:
@@ -29,16 +29,16 @@ services:
     env_file:
       - env/ci-stack.env
     healthcheck:
-        test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "magento", "-pmagento" ]
-        interval: 10s
-        timeout: 5s
-        retries: 3
-        start_period: 20s
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'magento', '-pmagento']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
   phpmyadmin:
     platform: linux/amd64
     image: phpmyadmin/phpmyadmin
     ports:
-      - "8580:80"
+      - '8580:80'
     links:
       - db
     depends_on:
@@ -51,11 +51,11 @@ services:
       - 9600:9600
     env_file: env/opensearch.env
     environment:
-      - "discovery.type=single-node"
-      - "cluster.routing.allocation.disk.threshold_enabled=false"
-      - "index.blocks.read_only_allow_delete"
+      - 'discovery.type=single-node'
+      - 'cluster.routing.allocation.disk.threshold_enabled=false'
+      - 'index.blocks.read_only_allow_delete'
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsSL http://localhost:9200/_cluster/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsSL http://localhost:9200/_cluster/health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 3

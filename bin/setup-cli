@@ -15,9 +15,9 @@ fi
 
 # Set the public key and secret key
 echo "Setting PSQ public key"
-bin/magento config:set --scope="default" payment/publicsquare_payments/publicsquare_api_public_key $PUBLIC_KEY
+bin/magento config:set --scope="default" payment/publicsquare_payments/publicsquare_api_public_key "$PUBLIC_KEY"
 echo "Setting PSQ secret key"
-bin/magento config:set --scope="default" payment/publicsquare_payments/publicsquare_api_secret_key $SECRET_KEY
+bin/magento config:set --scope="default" payment/publicsquare_payments/publicsquare_api_secret_key "$SECRET_KEY"
 echo "Setting PSQ plugin active"
 bin/magento config:set --scope="default" payment/publicsquare_payments/active 1
 echo "Disabling Two Factor Auth"

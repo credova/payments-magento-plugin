@@ -14,14 +14,14 @@
 ## Change Types
 
 - Frontend
-    - [ ] UI/UX
-    - [ ] Business Logic
+  - [ ] UI/UX
+  - [ ] Business Logic
 - Backend
-    - [ ] API Interface
-        - [ ] Requests Changes
-        - [ ] Response Changes
-    - [ ] Business Logic
-    - [ ] Database
+  - [ ] API Interface
+    - [ ] Requests Changes
+    - [ ] Response Changes
+  - [ ] Business Logic
+  - [ ] Database
 - [ ] Observability
 
 ## Summary
@@ -42,4 +42,3 @@
 - [ ] Tests pass
 - [ ] Added relevant tests
 - [ ] Logging & Observability
-
