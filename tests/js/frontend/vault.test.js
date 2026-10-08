@@ -4,6 +4,7 @@ import { loadAmdModule } from '../helpers/amd.js';
 import { failedPlaceOrder, placeOrderRequest, uiComponent } from '../helpers/magento.js';
 
 const RENDERER = 'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/vault.js';
+const ORDER_ERROR = 'PublicSquare/Payments/view/frontend/web/js/model/order-error.js';
 
 let magento;
 
@@ -29,6 +30,7 @@ function createRenderer() {
     'Magento_Customer/js/model/customer': magento.customer,
     'Magento_Checkout/js/model/place-order': magento.placeOrder,
     underscore: { extend: Object.assign },
+    'PublicSquare_Payments/js/model/order-error': loadAmdModule(ORDER_ERROR),
     'Magento_Checkout/js/model/quote': magento.quote,
   });
   // Magento passes the saved card's code and hash, and resolves hostedFields to the card renderer.
@@ -98,18 +100,34 @@ describe('vault', () => {
     });
   });
 
-  it('shows an error and stays on the page when the order fails', () => {
+  it.each([
+    ['the server message', { message: 'Insufficient funds.' }, 'Insufficient funds.'],
+    ['the default message', {}, 'Something went wrong. Please try again or contact support for assistance.'],
+  ])('shows %s and stays on the page when the order fails', (_which, body, expected) => {
     const renderer = createRenderer();
     const firstKey = renderer.idempotencyKey;
-    magento.placeOrder.mockImplementation(failedPlaceOrder({ message: 'declined' }));
+    magento.placeOrder.mockImplementation(failedPlaceOrder(body));
 
     renderer.placeOrder();
 
-    expect(magento.messageList.addErrorMessage).toHaveBeenCalledExactlyOnceWith({
-      message: 'Something went wrong. Please try again or contact support for assistance.',
-    });
+    expect(magento.messageList.addErrorMessage).toHaveBeenCalledExactlyOnceWith({ message: expected });
     expect(renderer.idempotencyKey).not.toBe(firstKey);
     expect(magento.fullScreenLoader.stopLoader).toHaveBeenCalled();
     expect($.mage.redirect).not.toHaveBeenCalled();
+  });
+
+  // The payment may have gone through, so the retry must reuse the key for PublicSquare to dedupe it.
+  it.each([
+    ['times out', undefined, 0],
+    ['fails on the server', { message: 'Service unavailable' }, 503],
+  ])('keeps the idempotency key when the order request %s', (_how, body, status) => {
+    const renderer = createRenderer();
+    const firstKey = renderer.idempotencyKey;
+    magento.placeOrder.mockImplementation(failedPlaceOrder(body, status));
+
+    renderer.placeOrder();
+
+    expect(renderer.idempotencyKey).toBe(firstKey);
+    expect(magento.messageList.addErrorMessage).toHaveBeenCalledOnce();
   });
 });

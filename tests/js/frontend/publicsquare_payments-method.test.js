@@ -5,6 +5,7 @@ import { failedPlaceOrder, placeOrderRequest, uiComponent } from '../helpers/mag
 
 const RENDERER =
   'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/publicsquare_payments-method.js';
+const ORDER_ERROR = 'PublicSquare/Payments/view/frontend/web/js/model/order-error.js';
 
 const GUEST_URL = '/guest-carts/:quoteId/payment-information';
 const CUSTOMER_URL = '/carts/mine/payment-information';
@@ -73,6 +74,7 @@ function createRenderer() {
     'Magento_Customer/js/model/customer': magento.customer,
     'Magento_Checkout/js/model/place-order': magento.placeOrder,
     underscore: { extend: Object.assign },
+    'PublicSquare_Payments/js/model/order-error': loadAmdModule(ORDER_ERROR),
   });
   return new Renderer();
 }
@@ -222,6 +224,22 @@ describe('publicsquare_payments-method', () => {
       expect(magento.fullScreenLoader.stopLoader).toHaveBeenCalled();
       expect(renderer.submitting).toBe(false);
       expect($.mage.redirect).not.toHaveBeenCalled();
+    });
+
+    // The payment may have gone through, so the retry must reuse the key for PublicSquare to dedupe it.
+    it.each([
+      ['times out', undefined, 0],
+      ['fails on the server', { message: 'Service unavailable' }, 503],
+    ])('keeps the idempotency key when the order request %s', async (_how, body, status) => {
+      const renderer = createRenderer();
+      const firstKey = renderer.idempotencyKey;
+      magento.placeOrder.mockImplementation(failedPlaceOrder(body, status));
+
+      await renderer.placeOrder();
+
+      expect(renderer.idempotencyKey).toBe(firstKey);
+      expect(errorMessages()).toHaveLength(1);
+      expect(renderer.submitting).toBe(false);
     });
   });
 });
