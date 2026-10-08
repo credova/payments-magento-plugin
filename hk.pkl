@@ -81,6 +81,11 @@ hooks {
                 check = "\(vendorGuard) && vendor/bin/phpunit -c tests/unit/phpunit.xml"
                 exclusive = true
             }
+            ["vitest"] {
+                glob = List("PublicSquare/**/*.js", "tests/js/**", "vitest.config.js", "package.json", "bun.lock")
+                check = "mise run test:js"
+                exclusive = true
+            }
         }
     }
 }

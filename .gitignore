@@ -21,3 +21,6 @@ http/**/*.key
 
 # Dev stack volume backups (mise run dev:backup)
 backups/
+
+# JS unit test dependencies (mise run test:js)
+node_modules/
