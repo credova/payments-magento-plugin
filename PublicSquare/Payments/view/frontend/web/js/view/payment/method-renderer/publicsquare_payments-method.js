@@ -24,6 +24,7 @@ define([
   'Magento_Customer/js/model/customer',
   'Magento_Checkout/js/model/place-order',
   'underscore',
+  'PublicSquare_Payments/js/model/order-error',
 ], function (
   $,
   Component,
@@ -39,23 +40,13 @@ define([
   customer,
   placeOrderService,
   _,
+  orderError,
 ) {
   'use strict';
 
   // Magento's place-order shows the raw server error in the message container it gets. This one
   // shows nothing, so the shopper sees only the renderer's message. A 401 still goes to login.
   const placeOrderMessages = { addErrorMessage: () => true };
-
-  // Fills %1 or %name placeholders from a Magento error's parameters, as Magento's messages model does.
-  function fillParameters(message, parameters) {
-    if (!parameters) {
-      return message;
-    }
-    return message.replace(/%(\w+)/g, (placeholder, name) => {
-      const key = /^\d+$/.test(name) ? Number(name) - 1 : name;
-      return Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : placeholder;
-    });
-  }
 
   return Component.extend({
     defaults: {
@@ -116,7 +107,9 @@ define([
           await self.placeOrderWithCardId(card.id);
         } catch (error) {
           fullScreenLoader.stopLoader();
-          self.idempotencyKey = self.generateIdempotencyKey();
+          if (orderError.isFinal(error)) {
+            self.idempotencyKey = self.generateIdempotencyKey();
+          }
           self.submitting = false;
           const errorMessage = self.getErrorMessage(error);
           console.log('publicsquare_payments-method: Failed to place order! %s', errorMessage);
@@ -170,24 +163,7 @@ define([
      * @returns {String}
      */
     getErrorMessage: function (error) {
-      const response = error && error.responseJSON;
-      const message = response && response.message;
-      if (!message) {
-        return this.errorMessage;
-      }
-      let text = message;
-      try {
-        // The server sometimes JSON-encodes the message.
-        const decoded = JSON.parse(message);
-        if (decoded && typeof decoded.message === 'string') {
-          text = decoded.message;
-        } else if (typeof decoded === 'string') {
-          text = decoded;
-        }
-      } catch {
-        // A plain-text message.
-      }
-      return fillParameters(text, response.parameters);
+      return orderError.message(error, this.errorMessage);
     },
     /**
      * @returns {Object}

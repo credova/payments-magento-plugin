@@ -16,6 +16,7 @@ define([
   'Magento_Checkout/js/model/place-order',
   'Magento_Checkout/js/model/quote',
   'underscore',
+  'PublicSquare_Payments/js/model/order-error',
 ], function (
   $,
   VaultComponent,
@@ -28,6 +29,7 @@ define([
   placeOrderService,
   quote,
   _,
+  orderError,
 ) {
   'use strict';
 
@@ -119,11 +121,13 @@ define([
           const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
           $.mage.redirect(successUrl);
         })
-        .fail(function () {
-          // A retry with the same key would replay the failed payment.
-          self.idempotencyKey = self.generateIdempotencyKey();
+        .fail(function (response) {
+          // After a final failure, a retry with the same key would replay it.
+          if (orderError.isFinal(response)) {
+            self.idempotencyKey = self.generateIdempotencyKey();
+          }
           messageList.addErrorMessage({
-            message: $t('Something went wrong. Please try again or contact support for assistance.'),
+            message: $t(orderError.message(response)),
           });
         })
         .always(function () {
