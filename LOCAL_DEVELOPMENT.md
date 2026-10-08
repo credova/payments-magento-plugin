@@ -143,3 +143,4 @@ If `magento-install/src/bin/magento` exists, run `mise run dev:build` again **wi
 | `cannot bind tcp port :8081: address already in use` | Another process uses the phpMyAdmin port. | Set `PHPMYADMIN_PORT` to a free port, run `mise run dev:reset`, then install again. |
 | RabbitMQ `.erlang.cookie: eacces`, and OpenSearch fails as a dependency | A race on the first start with new volumes. `bin/dev-up` retries the start once. | If it still fails, run `mise run dev:build` again **without** `mise run dev:reset`. |
 | `mise run dev:reset` hangs | An old `.envrc` put a relative `./bin` on `PATH`. | Pull the current `.envrc`, then run `direnv allow`. |
+| `~/.ssh/id_rsa` or `~/.ssh/known_hosts` is an empty directory | An install from before this fix mounts them. Docker creates a missing mount source as a directory. | Delete the `~/.ssh/` lines from `magento-install/compose.yaml`, then `rmdir` the directory. |

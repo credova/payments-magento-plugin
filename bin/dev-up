@@ -83,6 +83,8 @@ if [[ "${NEEDS_INSTALL}" -eq 1 ]]; then
     '{ print } /^ *- ssldata:\/etc\/nginx\/certs$/ { ind = $0; sub(/-.*/, "", ind); print ind "- " m }' \
     compose.yaml > compose.yaml.tmp && mv compose.yaml.tmp compose.yaml
   grep -qF "${CONTAINER_CA_DIR}" compose.yaml || echo "Warning: could not add the CA mount; each install will create a new CA."
+  # The template mounts ~/.ssh/id_rsa and known_hosts. Docker creates a missing source as an empty host directory.
+  grep -v -E '^ *- ~/\.ssh/' compose.yaml > compose.yaml.tmp && mv compose.yaml.tmp compose.yaml
   # Pin images before the first boot, as bin/download does, so the stack does not pull the defaults first.
   bin/detect-versions community "${MAGENTO_VERSION}" || true
   __start_with_retry --no-dev
