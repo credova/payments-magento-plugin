@@ -1,5 +1,11 @@
-# docker-magento loads compose.override.yaml from magento-install/. `mise run test:selenium` links this file there.
+# docker-magento loads compose.override.yaml from magento-install/. bin/dev-up links this file there.
 services:
+  # The stock probe runs as root. On a new volume it can create ~/.erlang.cookie as root before the server
+  # does, and the server (as rabbitmq) then fails with eacces. Run the probe as rabbitmq.
+  rabbitmq:
+    healthcheck:
+      test: ["CMD-SHELL", "su-exec rabbitmq rabbitmq-diagnostics -q ping"]
+
   # The test profile keeps Selenium off a plain `dev:up`.
   selenium:
     image: selenium/standalone-chromium:152.0-20260909
