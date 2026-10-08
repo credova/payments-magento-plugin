@@ -46,6 +46,17 @@ define([
   // shows nothing, so the shopper sees only the renderer's message. A 401 still goes to login.
   const placeOrderMessages = { addErrorMessage: () => true };
 
+  // Fills %1 or %name placeholders from a Magento error's parameters, as Magento's messages model does.
+  function fillParameters(message, parameters) {
+    if (!parameters) {
+      return message;
+    }
+    return message.replace(/%(\w+)/g, (placeholder, name) => {
+      const key = /^\d+$/.test(name) ? Number(name) - 1 : name;
+      return Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : placeholder;
+    });
+  }
+
   return Component.extend({
     defaults: {
       template: 'PublicSquare_Payments/payment/publicsquare_payments',
@@ -108,7 +119,7 @@ define([
           self.idempotencyKey = self.generateIdempotencyKey();
           self.submitting = false;
           const errorMessage = self.getErrorMessage(error);
-          console.log('publicsquare_payments-method: Failed to place order! %j', errorMessage);
+          console.log('publicsquare_payments-method: Failed to place order! %s', errorMessage);
           messageList.addErrorMessage({
             message: $t(errorMessage),
           });
@@ -139,7 +150,7 @@ define([
         if (quote.getItems().every((_) => _.product_type === 'virtual')) {
           let billingAddress = quote.billingAddress();
 
-          console.log('publicsquare_payments-method: Found address on quote! %j', billingAddress);
+          console.log('publicsquare_payments-method: Found address on quote! %o', billingAddress);
           placeOrderReqBody.billingAddress = billingAddress;
         }
       } else {
@@ -159,20 +170,24 @@ define([
      * @returns {String}
      */
     getErrorMessage: function (error) {
-      const message = error && error.responseJSON && error.responseJSON.message;
+      const response = error && error.responseJSON;
+      const message = response && response.message;
       if (!message) {
         return this.errorMessage;
       }
+      let text = message;
       try {
         // The server sometimes JSON-encodes the message.
         const decoded = JSON.parse(message);
         if (decoded && typeof decoded.message === 'string') {
-          return decoded.message;
+          text = decoded.message;
+        } else if (typeof decoded === 'string') {
+          text = decoded;
         }
-        return typeof decoded === 'string' ? decoded : message;
       } catch {
-        return message;
+        // A plain-text message.
       }
+      return fillParameters(text, response.parameters);
     },
     /**
      * @returns {Object}
