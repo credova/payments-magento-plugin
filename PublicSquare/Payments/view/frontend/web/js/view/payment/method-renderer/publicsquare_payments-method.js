@@ -139,14 +139,17 @@ define([
       } else {
         placeOrderReqBody.email = quote.guestEmail;
       }
-      return placeOrderService(serviceUrl, placeOrderReqBody, messageList)
-        .then(() => {
+      // Handle failure in then() so the chain settles; a rejection would reach placeOrder's catch
+      // and show a second error.
+      return placeOrderService(serviceUrl, placeOrderReqBody, messageList).then(
+        () => {
           const maskId = window.checkoutConfig.quoteData.entity_id;
           const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
           $.mage.redirect(successUrl);
-        })
-        .fail(function (response) {
+        },
+        function (response) {
           fullScreenLoader.stopLoader();
+          self.idempotencyKey = self.generateIdempotencyKey();
           self.submitting = false;
 
           // Extract the error message from the response
@@ -166,7 +169,8 @@ define([
           messageList.addErrorMessage({
             message: $t(errorMessage),
           });
-        });
+        },
+      );
     },
     /**
      * @returns {Object}
