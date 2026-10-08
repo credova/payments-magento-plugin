@@ -21,8 +21,14 @@ DEV_CA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/psq-magento/mkcert"
 CONTAINER_CA_DIR="/root/.local/share/mkcert"
 
 # docker-magento's bin/docker-compose loads compose.override.yaml. Link ours before any start.
+# Stop instead of replacing a developer's own override file.
 __link_override() {
-  ln -sfn "${ROOT_DIR}/docker/compose.override.yaml" "${MAGENTO_DIR}/compose.override.yaml"
+  local target="${MAGENTO_DIR}/compose.override.yaml"
+  if [[ -e "${target}" && ! -L "${target}" ]]; then
+    echo "${target} is a local file. Move its settings into docker/compose.override.yaml, then remove it." >&2
+    exit 1
+  fi
+  ln -sfn "${ROOT_DIR}/docker/compose.override.yaml" "${target}"
 }
 
 # Ensure .gitignore contains the install path
