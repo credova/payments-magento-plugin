@@ -26,8 +26,12 @@
       "PublicSquare\\Payments\\Test\\Unit\\": "tests/unit/",
       "Magento\\": "tests/unit/stubs/Magento/",
       "Monolog\\": "tests/unit/stubs/Monolog/",
-      "Symfony\\": "tests/unit/stubs/Symfony/"
-    }
+      "Symfony\\": "tests/unit/stubs/Symfony/",
+      "PublicSquare\\Payments\\": "tests/unit/stubs/PublicSquare/Payments/"
+    },
+    "files": [
+      "tests/unit/stubs/functions.php"
+    ]
   },
   "config": {
     "platform": {
