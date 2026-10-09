@@ -17,6 +17,8 @@ define([
   'Magento_Checkout/js/model/quote',
   'underscore',
   'PublicSquare_Payments/js/model/order-error',
+  'Magento_Checkout/js/model/payment/additional-validators',
+  'publicsquare_payments',
 ], function (
   $,
   VaultComponent,
@@ -30,6 +32,8 @@ define([
   quote,
   _,
   orderError,
+  additionalValidators,
+  publicsquare,
 ) {
   'use strict';
 
@@ -39,12 +43,26 @@ define([
 
   return VaultComponent.extend({
     defaults: {
-      template: 'Magento_Vault/payment/form',
+      template: 'PublicSquare_Payments/payment/vault',
       modules: {
         hostedFields: '${ $.parentName }.publicsquare_payments',
       },
       additionalData: {},
       idempotencyKey: null,
+      // CVV re-entry for a saved card shipping to a new address
+      requiresCvc: false,
+      cvcErrorMessage: '',
+      cvcFocused: false,
+      cvcElement: null,
+      cvcComplete: false,
+      cvcCardId: null,
+      cvvCheck: null,
+      submitting: false,
+    },
+
+    initObservable: function () {
+      this._super().observe(['requiresCvc', 'cvcErrorMessage', 'cvcFocused']);
+      return this;
     },
 
     initialize: function () {
@@ -52,6 +70,127 @@ define([
       self._super();
       self.idempotencyKey = self.generateIdempotencyKey();
       return self;
+    },
+
+    /**
+     * Whether the store asks for the CVV when a saved card ships to a new address.
+     * @returns {Boolean}
+     */
+    isCvvRecollectionEnabled: function () {
+      return !!window.checkoutConfig.payment.publicsquare_payments.requireCvvForNewShippingAddress;
+    },
+
+    getCvcContainerId: function () {
+      return 'psq-cvc-' + this.getId();
+    },
+
+    selectPaymentMethod: function () {
+      var result = this._super();
+      this.checkCvvRequirement();
+      return result;
+    },
+
+    /**
+     * Asks the server whether this card needs its CVV re-entered for the cart's shipping address,
+     * and shows the CVV field when it does.
+     * @returns {Promise<Boolean>} Whether a CVV is required
+     */
+    checkCvvRequirement: function () {
+      var self = this;
+      if (!self.isCvvRecollectionEnabled()) {
+        return Promise.resolve(false);
+      }
+      var check = new Promise(function (resolve) {
+        storage
+          .post(
+            urlBuilder.createUrl('/publicsquare/carts/mine/cvv-requirement', {}),
+            JSON.stringify({ publicHash: self.publicHash }),
+            false,
+          )
+          .done(function (response) {
+            if (response && response.required) {
+              self.cvcCardId = response.card_id;
+              self.requiresCvc(true);
+              self.mountCvcElement(response.card_brand).then(function () {
+                resolve(true);
+              });
+            } else {
+              self.resetCvc();
+              resolve(false);
+            }
+          })
+          .fail(function () {
+            // The server checks again when the order is placed, so checkout carries on.
+            resolve(self.requiresCvc());
+          });
+      });
+      // Place Order waits for the latest check, so an order can't go out before the CVV field appears.
+      self.cvvCheck = check;
+      check.then(function () {
+        if (self.cvvCheck === check) {
+          self.cvvCheck = null;
+        }
+      });
+      return check;
+    },
+
+    mountCvcElement: async function (cardBrand) {
+      var self = this;
+      if (self.cvcElement) {
+        return;
+      }
+      try {
+        await publicsquare.ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk);
+        self.cvcComplete = false;
+        self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
+        self.cvcElement.on('change', function (event) {
+          self.cvcComplete = !!(event && event.complete);
+          if (self.cvcComplete) {
+            self.cvcErrorMessage('');
+          }
+        });
+        // The input is in a cross-origin iframe, so the container can't use :focus-within.
+        self.cvcElement.on('focus', function () {
+          self.cvcFocused(true);
+        });
+        self.cvcElement.on('blur', function () {
+          self.cvcFocused(false);
+        });
+      } catch {
+        self.cvcErrorMessage($t('The security code field could not be loaded. Please refresh the page and try again.'));
+      }
+    },
+
+    resetCvc: function () {
+      if (this.cvcElement) {
+        this.cvcElement.unmount();
+      }
+      this.cvcElement = null;
+      this.cvcComplete = false;
+      this.cvcCardId = null;
+      this.cvcErrorMessage('');
+      this.cvcFocused(false);
+      this.requiresCvc(false);
+    },
+
+    /**
+     * Sends the re-entered CVV to the saved card before the order is placed.
+     * @returns {Promise<Boolean>} Whether the order can be placed
+     */
+    attachCvc: async function () {
+      if (!this.requiresCvc()) {
+        return true;
+      }
+      if (!this.cvcElement || !this.cvcComplete) {
+        this.cvcErrorMessage($t("Enter the card's security code."));
+        return false;
+      }
+      var result = await publicsquare.updateCvc(this.cvcCardId, this.cvcElement);
+      if (!result || result.error) {
+        this.cvcErrorMessage($t("We couldn't save the security code. Please check it and try again."));
+        return false;
+      }
+      return true;
     },
 
     getIcons: function (type) {
@@ -91,10 +230,54 @@ define([
      */
     placeOrder: function () {
       var self = this;
+      if (self.submitting || !additionalValidators.validate()) {
+        return;
+      }
+      self.submitting = true;
+      var done = function () {
+        self.submitting = false;
+      };
 
       self.hostedFields(() => {
-        self.placeOrderWithCardId();
+        var pendingCheck = self.cvvCheck;
+        if (!pendingCheck) {
+          self.attachCvcAndPlaceOrder(done);
+          return;
+        }
+        // Magento's loader is reference-counted: every start needs a stop, or the overlay stays up.
+        fullScreenLoader.startLoader();
+        pendingCheck.then(function () {
+          fullScreenLoader.stopLoader();
+          self.attachCvcAndPlaceOrder(done);
+        });
       });
+    },
+
+    /**
+     * Attaches the re-entered CVV when this card needs it, then places the order.
+     * @param {Function} done Called when the attempt ends
+     */
+    attachCvcAndPlaceOrder: function (done) {
+      var self = this;
+      if (!self.requiresCvc()) {
+        self.placeOrderWithCardId().always(done);
+        return;
+      }
+      fullScreenLoader.startLoader();
+      self
+        .attachCvc()
+        .catch(function () {
+          messageList.addErrorMessage({ message: $t(orderError.message()) });
+          return false;
+        })
+        .then(function (cvcAttached) {
+          fullScreenLoader.stopLoader();
+          if (!cvcAttached) {
+            done();
+            return;
+          }
+          self.placeOrderWithCardId().always(done);
+        });
     },
 
     placeOrderWithCardId: function () {
