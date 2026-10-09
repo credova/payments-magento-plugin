@@ -19,10 +19,12 @@ use PublicSquare\Payments\Test\Unit\Api\FakeHttpClient;
 class PaymentFollowUpRequestsTest extends TestCase
 {
     private FakeHttpClient $client;
+    private Logger $logger;
 
     protected function setUp(): void
     {
         $this->client = new FakeHttpClient('{"id":"pmt_1","status":"succeeded"}');
+        $this->logger = new Logger();
     }
 
     public function testCaptureSendsTheAmountInWholeCents(): void
@@ -78,20 +80,41 @@ class PaymentFollowUpRequestsTest extends TestCase
         ($request === 'capture' ? $this->capture(19.99) : $this->cancel())->getResponseData();
     }
 
+    public static function declineLogs(): array
+    {
+        return ['capture' => ['capture', 'PSQ Payment capture declined: insufficient_funds'],
+            'cancel' => ['cancel', 'PSQ Payment cancel declined: insufficient_funds']];
+    }
+
+    #[DataProvider('declineLogs')]
+    public function testLogsTheDeclineReason(string $request, string $logMessage): void
+    {
+        $this->client = new FakeHttpClient('{"id":"pmt_1","status":"declined","declined_reason":"insufficient_funds"}');
+        $this->logger = new Logger();
+
+        try {
+            ($request === 'capture' ? $this->capture(19.99) : $this->cancel())->getResponseData();
+        } catch (ApiDeclinedResponseException) {
+        }
+
+        $this->assertSame($logMessage, end($this->logger->messages)[0]);
+        $this->assertSame([], end($this->logger->messages)[1]['fraud_rules']);
+    }
+
     private function capture(float $amount): PaymentCapture
     {
-        return new PaymentCapture($this->clientFactory(), $this->config(), new Logger(), $this->createMock(Api::class),
+        return new PaymentCapture($this->clientFactory(), $this->config(), $this->logger, $this->createMock(Api::class),
             $amount, 'pmt_1', '100000123');
     }
 
     private function cancel(): PaymentCancel
     {
-        return new PaymentCancel($this->clientFactory(), $this->config(), new Logger(), 'pmt_1');
+        return new PaymentCancel($this->clientFactory(), $this->config(), $this->logger, 'pmt_1');
     }
 
     private function update(): PaymentUpdate
     {
-        return new PaymentUpdate($this->clientFactory(), $this->config(), new Logger(), 'pmt_1', '100000123');
+        return new PaymentUpdate($this->clientFactory(), $this->config(), $this->logger, 'pmt_1', '100000123');
     }
 
     private function clientFactory(): ClientFactory

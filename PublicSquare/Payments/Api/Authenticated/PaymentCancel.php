@@ -68,18 +68,14 @@ class PaymentCancel extends \PublicSquare\Payments\Api\ApiRequestAbstract
         try {
             $this->checkResponseStatus($data);
         } catch (ApiRejectedResponseException $e) {
-            $this->logger->error("PSQ Payment cancel rejected", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $this->logRefusedPayment("PSQ Payment cancel rejected", $data);
             throw new ApiRejectedResponseException(
                 __(
                     "The payment could not be canceled. Please verify your details and try again."
                 )
             );
         } catch (ApiDeclinedResponseException $e) {
-            $this->logger->error("PSQ Payment cancel declined", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $this->logRefusedPayment("PSQ Payment cancel declined: " . ($data["declined_reason"] ?? "not provided"), $data);
             throw new ApiDeclinedResponseException(
                 __(
                     "The payment could not be canceled. Reason: " .

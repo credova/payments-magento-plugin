@@ -219,6 +219,41 @@ class PaymentCreateTest extends TestCase
         $this->assertSame([['response' => ['id' => 'pmt_1', 'status' => 'succeeded', 'amount' => 1999]]], $logged);
     }
 
+    public static function refusals(): array
+    {
+        return [
+            'declined' => [['status' => 'declined', 'declined_reason' => 'insufficient_funds'],
+                'PSQ Payment declined: insufficient_funds'],
+            'declined without a reason' => [['status' => 'declined'], 'PSQ Payment declined: not provided'],
+            'rejected by fraud rules' => [['status' => 'rejected'], 'PSQ Payment rejected'],
+        ];
+    }
+
+    /** Staff read the reason and fraud rules in the log line; the shopper sees neither the rules nor the decision. */
+    #[DataProvider('refusals')]
+    public function testLogsTheReasonAndFraudRulesForStaff(array $response, string $logMessage): void
+    {
+        $fraud = ['decision' => 'reject', 'rules' => [
+            ['rule_engine' => 'kount', 'rule_id' => '42', 'rule_description' => 'Velocity limit'],
+            ['rule_engine' => 'psq', 'rule_id' => '7', 'rule_description' => 'Country mismatch'],
+        ]];
+        $this->client = new FakeHttpClient(json_encode(['id' => 'pmt_1', 'fraud_details' => $fraud] + $response));
+
+        try {
+            $this->paymentCreate()->getResponseData();
+            $this->fail('A refused payment must throw.');
+        } catch (\Exception $e) {
+            $this->assertStringNotContainsString('Velocity limit', $e->getMessage());
+            $this->assertStringNotContainsString('reject', $e->getMessage());
+        }
+
+        [$message, $context] = end($this->logger->messages);
+        $this->assertSame($logMessage, $message);
+        $this->assertSame('reject', $context['fraud_decision']);
+        $this->assertSame(['kount #42 - Velocity limit', 'psq #7 - Country mismatch'], $context['fraud_rules']);
+        $this->assertSame($fraud, $context['response']['fraud_details']);
+    }
+
     public function testSendsTheRequestOnceAndReusesTheResponse(): void
     {
         $request = $this->paymentCreate();
