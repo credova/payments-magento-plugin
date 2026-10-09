@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
-import { deferred, instantiate, observable } from '../helpers/magento.js';
+import { deferred, instantiate, observable, subscribable } from '../helpers/magento.js';
 
 const RENDERER = 'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/vault.js';
 
@@ -22,6 +22,12 @@ function setup({ enabled = true, requirement = { required: false } } = {}) {
   const cvcElement = {
     on: vi.fn((event, handler) => (cvcHandlers[event] = handler)),
     unmount: vi.fn(),
+    clear: vi.fn(),
+  };
+  const quote = {
+    getQuoteId: () => '1',
+    paymentMethod: subscribable(null),
+    totals: subscribable({}),
   };
   const deps = {
     jquery: { mage: { redirect: vi.fn() } },
@@ -33,7 +39,7 @@ function setup({ enabled = true, requirement = { required: false } } = {}) {
     'mage/translate': (text) => text,
     'Magento_Customer/js/model/customer': { isLoggedIn: () => true },
     'Magento_Checkout/js/model/place-order': vi.fn(() => deferred({})),
-    'Magento_Checkout/js/model/quote': { getQuoteId: () => '1' },
+    'Magento_Checkout/js/model/quote': quote,
     'Magento_Checkout/js/model/payment/additional-validators': { validate: vi.fn(() => true) },
     publicsquare_payments: {
       ensureInitialized: vi.fn(() => Promise.resolve({})),
@@ -53,7 +59,7 @@ function setup({ enabled = true, requirement = { required: false } } = {}) {
     requiresCvc: observable(false),
     cvcErrorMessage: observable(''),
   });
-  return { renderer, deps, cvcElement, typeCvc: (complete) => cvcHandlers.change({ complete }) };
+  return { renderer, deps, quote, cvcElement, typeCvc: (complete) => cvcHandlers.change({ complete }) };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -195,5 +201,109 @@ describe('saved-card renderer: CVV re-entry', () => {
 
     const loader = ctx.deps['Magento_Checkout/js/model/full-screen-loader'];
     expect(loader.startLoader.mock.calls.length).toBe(loader.stopLoader.mock.calls.length);
+  });
+});
+
+describe('saved-card renderer: backing out of the CVV step', () => {
+  afterEach(() => {
+    delete window.checkoutConfig;
+    delete window._;
+  });
+
+  async function selectedWithCvvShown(options = {}) {
+    const ctx = setup({ requirement: { required: true, card_id: 'card_saved123' }, ...options });
+    ctx.renderer.watchForCvvChanges();
+    ctx.quote.paymentMethod({ method: 'publicsquare_payments_cc_vault_1' });
+    await ctx.renderer.checkCvvRequirement();
+    return ctx;
+  }
+
+  it('removes the CVV field when another payment method is chosen', async () => {
+    const { renderer, quote, cvcElement } = await selectedWithCvvShown();
+
+    quote.paymentMethod({ method: 'publicsquare_payments' });
+
+    expect(cvcElement.unmount).toHaveBeenCalled();
+    expect(renderer.requiresCvc()).toBe(false);
+  });
+
+  it('re-checks when the cart changes while the card is selected', async () => {
+    const { deps, quote } = await selectedWithCvvShown();
+    deps['mage/storage'].post.mockClear();
+
+    quote.totals({ grand_total: 50 });
+
+    expect(deps['mage/storage'].post).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the CVV field when the new address no longer needs it', async () => {
+    const { renderer, deps, quote, cvcElement } = await selectedWithCvvShown();
+    deps['mage/storage'].post.mockReturnValue(deferred({ required: false }));
+
+    quote.totals({ grand_total: 50 });
+    await flush();
+
+    expect(cvcElement.unmount).toHaveBeenCalled();
+    expect(renderer.requiresCvc()).toBe(false);
+  });
+
+  it('does not re-check for a card that is not selected', () => {
+    const { renderer, deps, quote } = setup();
+    renderer.watchForCvvChanges();
+    deps['mage/storage'].post.mockClear();
+
+    quote.totals({ grand_total: 50 });
+
+    expect(deps['mage/storage'].post).not.toHaveBeenCalled();
+  });
+
+  it('mounts one CVV field when two checks finish together', async () => {
+    const { renderer, deps } = setup({ requirement: { required: true, card_id: 'card_saved123' } });
+
+    await Promise.all([renderer.checkCvvRequirement(), renderer.checkCvvRequirement()]);
+
+    expect(deps.publicsquare_payments.createCvcElement).toHaveBeenCalledTimes(1);
+  });
+
+  it('after a failed order, clears the CVV, uses a new idempotency key and re-checks', async () => {
+    const { renderer, deps, cvcElement, typeCvc } = await selectedWithCvvShown();
+    typeCvc(true);
+    const firstKey = (renderer.idempotencyKey = 'key-1');
+    deps['Magento_Checkout/js/model/place-order'].mockReturnValue(
+      deferred({ responseJSON: { message: "The security code didn't match. Please check it and try again." } }, false),
+    );
+    deps['mage/storage'].post.mockClear();
+
+    renderer.placeOrder();
+    await flush();
+
+    expect(cvcElement.clear).toHaveBeenCalled();
+    expect(renderer.idempotencyKey).not.toBe(firstKey);
+    expect(deps['mage/storage'].post).toHaveBeenCalledTimes(1);
+    expect(deps['Magento_Ui/js/model/messageList'].addErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it('shows the generic message only when the server gave none', async () => {
+    const { renderer, deps } = setup();
+    deps['Magento_Checkout/js/model/place-order'].mockReturnValue(deferred({}, false));
+
+    renderer.placeOrder();
+    await flush();
+
+    expect(deps['Magento_Ui/js/model/messageList'].addErrorMessage).toHaveBeenCalledWith({
+      message: 'Something went wrong. Please try again or contact support for assistance.',
+    });
+  });
+
+  it('can place the order again after a failure', async () => {
+    const { renderer, deps } = setup();
+    deps['Magento_Checkout/js/model/place-order'].mockReturnValueOnce(deferred({}, false));
+
+    renderer.placeOrder();
+    await flush();
+    renderer.placeOrder();
+    await flush();
+
+    expect(deps['Magento_Checkout/js/model/place-order']).toHaveBeenCalledTimes(2);
   });
 });

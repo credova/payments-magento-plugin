@@ -47,6 +47,7 @@ define([
       cvcElement: null,
       cvcComplete: false,
       cvcCardId: null,
+      cvcMounting: null,
       submitting: false,
     },
 
@@ -59,7 +60,36 @@ define([
       var self = this;
       self._super();
       self.idempotencyKey = self.generateIdempotencyKey();
+      if (self.isCvvRecollectionEnabled()) {
+        self.watchForCvvChanges();
+      }
       return self;
+    },
+
+    /**
+     * Keeps the CVV field in step with checkout: another payment method hides it, and a saved change to
+     * the cart (shipping address, totals) re-checks whether this card needs its CVV.
+     */
+    watchForCvvChanges: function () {
+      var self = this;
+      quote.paymentMethod.subscribe(function (method) {
+        if (!method || method.method !== self.getId()) {
+          self.resetCvc();
+        }
+      });
+      quote.totals.subscribe(function () {
+        if (self.isSelected()) {
+          self.checkCvvRequirement();
+        }
+      });
+      if (self.isSelected()) {
+        self.checkCvvRequirement();
+      }
+    },
+
+    isSelected: function () {
+      var method = quote.paymentMethod();
+      return !!method && method.method === this.getId();
     },
 
     /**
@@ -116,24 +146,41 @@ define([
       });
     },
 
-    mountCvcElement: async function (cardBrand) {
+    /**
+     * Mounts the CVV field once, even when several checks finish at the same time.
+     */
+    mountCvcElement: function (cardBrand) {
       var self = this;
       if (self.cvcElement) {
-        return;
+        return Promise.resolve();
       }
-      try {
-        await publicsquare.ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk);
-        self.cvcComplete = false;
-        self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
-        self.cvcElement.on('change', function (event) {
-          self.cvcComplete = !!(event && event.complete);
-          if (self.cvcComplete) {
-            self.cvcErrorMessage('');
-          }
-        });
-      } catch {
-        self.cvcErrorMessage($t('The security code field could not be loaded. Please refresh the page and try again.'));
+      if (!self.cvcMounting) {
+        self.cvcMounting = publicsquare
+          .ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk)
+          .then(function () {
+            // The customer may have picked something else while the SDK loaded.
+            if (self.cvcElement || !self.requiresCvc()) {
+              return;
+            }
+            self.cvcComplete = false;
+            self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
+            self.cvcElement.on('change', function (event) {
+              self.cvcComplete = !!(event && event.complete);
+              if (self.cvcComplete) {
+                self.cvcErrorMessage('');
+              }
+            });
+          })
+          .catch(function () {
+            self.cvcErrorMessage(
+              $t('The security code field could not be loaded. Please refresh the page and try again.'),
+            );
+          })
+          .finally(function () {
+            self.cvcMounting = null;
+          });
       }
+      return self.cvcMounting;
     },
 
     resetCvc: function () {
@@ -233,6 +280,7 @@ define([
     },
 
     placeOrderWithCardId: function () {
+      var self = this;
       fullScreenLoader.startLoader();
       var serviceUrl = urlBuilder.createUrl(
         customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
@@ -255,10 +303,14 @@ define([
           const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
           $.mage.redirect(successUrl);
         })
-        .fail(function () {
-          messageList.addErrorMessage({
-            message: $t('Something went wrong. Please try again or contact support for assistance.'),
-          });
+        .fail(function (response) {
+          // The server's own message (already shown) explains what to fix; only fall back when there's none.
+          if (!(response && response.responseJSON && response.responseJSON.message)) {
+            messageList.addErrorMessage({
+              message: $t('Something went wrong. Please try again or contact support for assistance.'),
+            });
+          }
+          self.recoverFromFailedOrder();
         })
         .always(function () {
           fullScreenLoader.stopLoader();
@@ -287,6 +339,23 @@ define([
       data['additional_data'] = _.extend(data['additional_data'], this.additionalData);
 
       return data;
+    },
+
+    /**
+     * After a decline or a "re-enter your security code" error, lets the customer fix it and retry:
+     * a fresh idempotency key so the retry is a new payment, an empty CVV field so the CVV is entered
+     * again, and a re-check in case the server now needs the CVV.
+     */
+    recoverFromFailedOrder: function () {
+      this.idempotencyKey = this.generateIdempotencyKey();
+      if (!this.isCvvRecollectionEnabled()) {
+        return;
+      }
+      if (this.cvcElement && typeof this.cvcElement.clear === 'function') {
+        this.cvcElement.clear();
+        this.cvcComplete = false;
+      }
+      this.checkCvvRequirement();
     },
 
     generateIdempotencyKey() {
