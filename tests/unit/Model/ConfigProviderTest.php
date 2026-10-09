@@ -31,6 +31,7 @@ class ConfigProviderTest extends TestCase
                         'ccVaultCode' => 'publicsquare_payments_cc_vault',
                         'cardImagesBasePath' => 'https://assets.publicsquare.com/sc/web/assets/images/cards/',
                         'cardInputCustomization' => '{"theme":"dark"}',
+                        'requireCvvForNewShippingAddress' => false,
                     ],
                 ],
             ],
