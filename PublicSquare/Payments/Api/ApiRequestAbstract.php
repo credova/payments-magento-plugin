@@ -84,7 +84,6 @@ abstract class ApiRequestAbstract
         \PublicSquare\Payments\Helper\Config $configHelper,
         \PublicSquare\Payments\Logger\Logger $logger
     ) {
-        $this->clientFactory = $clientFactory->create();
         $this->clientFactory = $clientFactory;
         $this->configHelper  = $configHelper;
         $this->logger        = $logger;
@@ -294,12 +293,51 @@ abstract class ApiRequestAbstract
         $this->logger->debug($message);
     } //end debugLog()
 
-    public function checkResponseStatus($responseData): bool {
+    /**
+     * Logs a declined or rejected payment for staff, with the fraud decision and rules beside the response.
+     *
+     * The rules go to the log only. The exception that the shopper sees must not carry them.
+     *
+     * @param string $message The log message; a decline adds its reason.
+     * @param array $data The decoded PublicSquare response.
+     */
+    protected function logRefusedPayment(string $message, array $data): void
+    {
+        $rules = $data['fraud_details']['rules'] ?? [];
+        $this->logger->error($message, [
+            'fraud_decision' => $data['fraud_details']['decision'] ?? null,
+            // Same form as the plugin-gateway staff notes: "engine #id - description".
+            'fraud_rules' => array_map(
+                fn ($rule) => sprintf(
+                    '%s #%s - %s',
+                    $rule['rule_engine'] ?? '',
+                    $rule['rule_id'] ?? '',
+                    $rule['rule_description'] ?? ''
+                ),
+                is_array($rules) ? $rules : []
+            ),
+            'response' => $this->getSanitizedResponseData(),
+        ]);
+    }
+
+    /**
+     * Returns the decline reason from a PublicSquare response, or null when the response has none.
+     *
+     * @param array $data The decoded PublicSquare response.
+     */
+    protected function declinedReason(array $data): ?string
+    {
+        $reason = $data['declined_reason'] ?? null;
+        return is_scalar($reason) && (string) $reason !== '' ? (string) $reason : null;
+    }
+
+    public function checkResponseStatus($responseData): bool
+    {
         if ($responseData['status'] === self::REJECTED_STATUS) {
             throw new ApiRejectedResponseException("Something went wrong. Please try again.");
-        } else if ($responseData['status'] === self::DECLINED_STATUS) {
+        } elseif ($responseData['status'] === self::DECLINED_STATUS) {
             throw new ApiDeclinedResponseException("Something went wrong. Please try again.");
-        } else if ($responseData['status'] === self::FAILED_STATUS) {
+        } elseif ($responseData['status'] === self::FAILED_STATUS) {
             throw new ApiFailedResponseException("Something went wrong. Please try again.");
         }
         return true;

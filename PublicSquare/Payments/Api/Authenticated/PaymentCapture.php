@@ -70,25 +70,21 @@ class PaymentCapture extends \PublicSquare\Payments\Api\ApiRequestAbstract
         try {
             $this->checkResponseStatus($data);
         } catch (ApiRejectedResponseException $e) {
-            $this->logger->error("PSQ Payment capture rejected", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $this->logRefusedPayment("PSQ Payment capture rejected", $data);
             throw new ApiRejectedResponseException(
                 __(
                     "The payment could not be completed. Please verify your details and try again."
                 )
             );
         } catch (ApiDeclinedResponseException $e) {
-            $this->logger->error("PSQ Payment capture declined", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $reason = $this->declinedReason($data);
+            $this->logRefusedPayment("PSQ Payment capture declined: " . ($reason ?? "not provided"), $data);
             throw new ApiDeclinedResponseException(
-                __(
-                    "The payment could not be processed. Reason: " .
-                        $data["declined_reason"] ??
-                        "declined"
-                )
+                __("The payment could not be processed. Reason: %1", $reason ?? "declined")
             );
+        } catch (ApiFailedResponseException $e) {
+            $this->logRefusedPayment("PSQ Payment capture failed", $data);
+            throw $e;
         }
 
         if (in_array($status, [$this::SUCCEEDED_STATUS, $this::REQUIRES_CAPTURE_STATUS])) {
