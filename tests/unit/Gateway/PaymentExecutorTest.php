@@ -439,6 +439,8 @@ class FakeToken implements PaymentTokenInterface
 
     public function __call($method, $args) {}
     public function getId() { return null; }
+    public function getEntityId() { return $this->data['entityId'] ?? null; }
+    public function setEntityId($entityId) { $this->data['entityId'] = $entityId; }
     public function setCustomerId($customerId) { $this->data['customerId'] = $customerId; }
     public function getCustomerId() { return $this->data['customerId'] ?? null; }
     public function setGatewayToken($token) { $this->data['gatewayToken'] = $token; }
