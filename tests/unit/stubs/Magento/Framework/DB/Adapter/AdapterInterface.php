@@ -6,6 +6,9 @@ use Magento\Framework\DB\Select;
 
 interface AdapterInterface
 {
+    const INSERT_ON_DUPLICATE = 1;
+    const INSERT_IGNORE = 2;
+
     public function select(): Select;
 
     public function fetchAll($sql, $bind = [], $fetchMode = null);
