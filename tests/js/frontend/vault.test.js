@@ -16,11 +16,16 @@ function createRenderer({ requirement = { required: false } } = {}) {
   magento = {
     storage: { post: vi.fn(() => $.Deferred().resolve(requirement).promise()) },
     validators: { validate: vi.fn(() => true) },
-    cvcElement: { on: vi.fn((event, handler) => (cvcHandlers[event] = handler)), unmount: vi.fn() },
+    cvcElement: { on: vi.fn((event, handler) => (cvcHandlers[event] = handler)), unmount: vi.fn(), clear: vi.fn() },
     typeCvc: (complete) => cvcHandlers.change({ complete }),
     focusCvc: (focused) => cvcHandlers[focused ? 'focus' : 'blur'](),
     urlBuilder: { createUrl: vi.fn(() => '/rest/default/V1/payment-information') },
-    quote: { getQuoteId: vi.fn(() => 'quote_1'), guestEmail: 'jane@example.com' },
+    quote: {
+      getQuoteId: vi.fn(() => 'quote_1'),
+      guestEmail: 'jane@example.com',
+      paymentMethod: ko.observable(null),
+      totals: ko.observable({}),
+    },
     fullScreenLoader: { startLoader: vi.fn(), stopLoader: vi.fn() },
     messageList: { addErrorMessage: vi.fn() },
     customer: { isLoggedIn: vi.fn(() => false) },
@@ -334,6 +339,140 @@ describe('vault', () => {
 
       const loader = magento.fullScreenLoader;
       expect(loader.startLoader.mock.calls.length).toBe(loader.stopLoader.mock.calls.length);
+    });
+  });
+
+  describe('backing out of the CVV step', () => {
+    beforeEach(() => {
+      window.checkoutConfig.payment.publicsquare_payments.pk = 'pk_test_key';
+      window.checkoutConfig.payment.publicsquare_payments.requireCvvForNewShippingAddress = true;
+    });
+
+    async function selectedWithCvvShown(requirement = { required: true, card_id: 'card_1' }) {
+      const renderer = createRenderer({ requirement });
+      magento.quote.paymentMethod({ method: 'publicsquare_payments_cc_vault_1' });
+      await renderer.checkCvvRequirement();
+      return renderer;
+    }
+
+    it('removes the CVV field when another payment method is chosen', async () => {
+      const renderer = await selectedWithCvvShown();
+
+      magento.quote.paymentMethod({ method: 'publicsquare_payments' });
+
+      expect(magento.cvcElement.unmount).toHaveBeenCalled();
+      expect(renderer.requiresCvc()).toBe(false);
+    });
+
+    it('re-checks when the cart changes while the card is selected', async () => {
+      await selectedWithCvvShown();
+      magento.storage.post.mockClear();
+
+      magento.quote.totals({ grand_total: 50 });
+
+      expect(magento.storage.post).toHaveBeenCalledOnce();
+    });
+
+    it('hides the CVV field when the new address no longer needs it', async () => {
+      const renderer = await selectedWithCvvShown();
+      magento.storage.post.mockReturnValue($.Deferred().resolve({ required: false }).promise());
+
+      magento.quote.totals({ grand_total: 50 });
+      await settle();
+
+      expect(magento.cvcElement.unmount).toHaveBeenCalled();
+      expect(renderer.requiresCvc()).toBe(false);
+    });
+
+    it('does not re-check for a card that is not selected', () => {
+      createRenderer();
+      magento.storage.post.mockClear();
+
+      magento.quote.totals({ grand_total: 50 });
+
+      expect(magento.storage.post).not.toHaveBeenCalled();
+    });
+
+    it('mounts one CVV field when two checks finish together', async () => {
+      const renderer = createRenderer({ requirement: { required: true, card_id: 'card_1' } });
+
+      await Promise.all([renderer.checkCvvRequirement(), renderer.checkCvvRequirement()]);
+
+      expect(magento.publicsquare.createCvcElement).toHaveBeenCalledOnce();
+    });
+
+    it('ignores an older answer that arrives after a newer one', async () => {
+      const renderer = createRenderer();
+      magento.quote.paymentMethod({ method: 'publicsquare_payments_cc_vault_1' });
+      const older = $.Deferred();
+      const newer = $.Deferred();
+      magento.storage.post.mockReturnValueOnce(older.promise()).mockReturnValueOnce(newer.promise());
+      renderer.checkCvvRequirement();
+      renderer.checkCvvRequirement();
+
+      newer.resolve({ required: false });
+      older.resolve({ required: true, card_id: 'card_1' });
+      await settle();
+
+      expect(renderer.requiresCvc()).toBe(false);
+      expect(magento.publicsquare.createCvcElement).not.toHaveBeenCalled();
+    });
+
+    it('ignores an answer that arrives after another payment method is chosen', async () => {
+      const renderer = createRenderer();
+      magento.quote.paymentMethod({ method: 'publicsquare_payments_cc_vault_1' });
+      const answer = $.Deferred();
+      magento.storage.post.mockReturnValue(answer.promise());
+      renderer.checkCvvRequirement();
+
+      magento.quote.paymentMethod({ method: 'checkmo' });
+      answer.resolve({ required: true, card_id: 'card_1' });
+      await settle();
+
+      expect(renderer.requiresCvc()).toBe(false);
+      expect(magento.publicsquare.createCvcElement).not.toHaveBeenCalled();
+    });
+
+    it('after a failed order, empties the CVV field and checks again', async () => {
+      const renderer = await selectedWithCvvShown();
+      magento.typeCvc(true);
+      magento.placeOrder.mockImplementation(failedPlaceOrder({ message: "The security code didn't match." }));
+      magento.storage.post.mockClear();
+
+      renderer.placeOrder();
+      await settle();
+
+      expect(magento.messageList.addErrorMessage).toHaveBeenCalledExactlyOnceWith({
+        message: "The security code didn't match.",
+      });
+      expect(magento.cvcElement.clear).toHaveBeenCalled();
+      expect(magento.storage.post).toHaveBeenCalledOnce();
+    });
+
+    it('after a failed order, checks again even with the setting off', async () => {
+      window.checkoutConfig.payment.publicsquare_payments.requireCvvForNewShippingAddress = false;
+      const renderer = createRenderer({ requirement: { required: true, card_id: 'card_1' } });
+      magento.placeOrder.mockImplementation(
+        failedPlaceOrder({ message: "Please re-enter your card's security code to continue." }),
+      );
+
+      renderer.placeOrder();
+      await settle();
+
+      // PublicSquare's rule rejected the payment, so the server now asks for this card's CVV.
+      expect(magento.storage.post).toHaveBeenCalledOnce();
+      expect(renderer.requiresCvc()).toBe(true);
+    });
+
+    it('can place the order again after a failure', async () => {
+      const renderer = createRenderer();
+      magento.placeOrder.mockImplementationOnce(failedPlaceOrder({ message: 'Declined.' }));
+
+      renderer.placeOrder();
+      await settle();
+      renderer.placeOrder();
+
+      expect(magento.placeOrder).toHaveBeenCalledTimes(2);
     });
   });
 });

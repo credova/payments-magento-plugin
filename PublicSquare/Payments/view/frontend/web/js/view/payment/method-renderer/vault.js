@@ -55,7 +55,9 @@ define([
       cvcElement: null,
       cvcComplete: false,
       cvcCardId: null,
+      cvcMounting: null,
       cvvCheck: null,
+      cvvCheckId: 0,
       submitting: false,
     },
 
@@ -68,7 +70,38 @@ define([
       const self = this;
       self._super();
       self.idempotencyKey = self.generateIdempotencyKey();
+      if (self.isCvvRecollectionEnabled()) {
+        self.watchForCvvChanges();
+      }
       return self;
+    },
+
+    // Another payment method hides the CVV field; a saved cart change (address, totals) re-checks it.
+    watchForCvvChanges: function () {
+      const self = this;
+      quote.paymentMethod.subscribe(function (method) {
+        if (!method || method.method !== self.getId()) {
+          self.resetCvc();
+        }
+      });
+      quote.totals.subscribe(function () {
+        if (self.isSelected()) {
+          self.checkCvvRequirement();
+        }
+      });
+      if (self.isSelected()) {
+        self.checkCvvRequirement();
+      }
+    },
+
+    isSelected: function () {
+      const method = quote.paymentMethod();
+      return !!method && method.method === this.getId();
+    },
+
+    isAnotherMethodSelected: function () {
+      const method = quote.paymentMethod();
+      return !!method && method.method !== this.getId();
     },
 
     isCvvRecollectionEnabled: function () {
@@ -86,11 +119,14 @@ define([
     },
 
     // Asks the server whether this card needs its CVV for the cart's address. Resolves to whether it does.
-    checkCvvRequirement: function () {
+    // evenWhenOff: ask with the setting off too, since PublicSquare's rule may have rejected the last order.
+    checkCvvRequirement: function (evenWhenOff) {
       const self = this;
-      if (!self.isCvvRecollectionEnabled()) {
+      if (!evenWhenOff && !self.isCvvRecollectionEnabled()) {
         return Promise.resolve(false);
       }
+      // Answers can arrive out of order: only the latest one, with no other method chosen, changes the field.
+      const checkId = ++self.cvvCheckId;
       const check = new Promise(function (resolve) {
         storage
           .post(
@@ -99,6 +135,10 @@ define([
             false,
           )
           .done(function (response) {
+            if (checkId !== self.cvvCheckId || self.isAnotherMethodSelected()) {
+              resolve(self.requiresCvc());
+              return;
+            }
             if (response && response.required) {
               self.cvcCardId = response.card_id;
               self.requiresCvc(true);
@@ -125,31 +165,46 @@ define([
       return check;
     },
 
-    mountCvcElement: async function (cardBrand) {
+    // Mounts once, even when several checks finish together.
+    mountCvcElement: function (cardBrand) {
       const self = this;
       if (self.cvcElement) {
-        return;
+        return Promise.resolve();
       }
-      try {
-        await publicsquare.ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk);
-        self.cvcComplete = false;
-        self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
-        self.cvcElement.on('change', function (event) {
-          self.cvcComplete = !!(event && event.complete);
-          if (self.cvcComplete) {
-            self.cvcErrorMessage('');
-          }
-        });
-        // The input is in a cross-origin iframe, so the container can't use :focus-within.
-        self.cvcElement.on('focus', function () {
-          self.cvcFocused(true);
-        });
-        self.cvcElement.on('blur', function () {
-          self.cvcFocused(false);
-        });
-      } catch {
-        self.cvcErrorMessage($t('The security code field could not be loaded. Please refresh the page and try again.'));
+      if (!self.cvcMounting) {
+        self.cvcMounting = publicsquare
+          .ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk)
+          .then(function () {
+            // The customer may have picked something else while the SDK loaded.
+            if (self.cvcElement || !self.requiresCvc()) {
+              return;
+            }
+            self.cvcComplete = false;
+            self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
+            self.cvcElement.on('change', function (event) {
+              self.cvcComplete = !!(event && event.complete);
+              if (self.cvcComplete) {
+                self.cvcErrorMessage('');
+              }
+            });
+            // The input is in a cross-origin iframe, so the container can't use :focus-within.
+            self.cvcElement.on('focus', function () {
+              self.cvcFocused(true);
+            });
+            self.cvcElement.on('blur', function () {
+              self.cvcFocused(false);
+            });
+          })
+          .catch(function () {
+            self.cvcErrorMessage(
+              $t('The security code field could not be loaded. Please refresh the page and try again.'),
+            );
+          })
+          .finally(function () {
+            self.cvcMounting = null;
+          });
       }
+      return self.cvcMounting;
     },
 
     resetCvc: function () {
@@ -296,6 +351,7 @@ define([
           messageList.addErrorMessage({
             message: $t(orderError.message(response)),
           });
+          self.recoverCvcAfterFailedOrder();
         })
         .always(function () {
           fullScreenLoader.stopLoader();
@@ -324,6 +380,15 @@ define([
       data['additional_data'] = _.extend(data['additional_data'], this.additionalData);
 
       return data;
+    },
+
+    // After a failed order: empty the CVV field and re-check, in case the server now needs the CVV.
+    recoverCvcAfterFailedOrder: function () {
+      if (this.cvcElement && typeof this.cvcElement.clear === 'function') {
+        this.cvcElement.clear();
+        this.cvcComplete = false;
+      }
+      this.checkCvvRequirement(true);
     },
 
     generateIdempotencyKey() {
