@@ -29,7 +29,8 @@ define([], function () {
     message: function (error, fallback = DEFAULT_MESSAGE) {
       const response = error && error.responseJSON;
       const message = response && response.message;
-      if (!message) {
+      // Only a string can be shown. A number or an object would make fillParameters() throw.
+      if (!message || typeof message !== 'string') {
         return fallback;
       }
       let text = message;

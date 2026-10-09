@@ -103,6 +103,16 @@ describe('vault', () => {
   it.each([
     ['the server message', { message: 'Insufficient funds.' }, 'Insufficient funds.'],
     ['the default message', {}, 'Something went wrong. Please try again or contact support for assistance.'],
+    [
+      'the default message for a number',
+      { message: 500 },
+      'Something went wrong. Please try again or contact support for assistance.',
+    ],
+    [
+      'the default message for an object',
+      { message: { code: 42 } },
+      'Something went wrong. Please try again or contact support for assistance.',
+    ],
   ])('shows %s and stays on the page when the order fails', (_which, body, expected) => {
     const renderer = createRenderer();
     const firstKey = renderer.idempotencyKey;
