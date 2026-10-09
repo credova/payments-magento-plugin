@@ -205,6 +205,7 @@ describe('publicsquare_payments-method', () => {
       ['a JSON-encoded', JSON.stringify({ message: 'Insufficient funds.' }), 'Insufficient funds.'],
       ['a JSON-encoded non-message', JSON.stringify({ code: 42 }), JSON.stringify({ code: 42 })],
       ['no', undefined, 'Something went wrong. Please try again or contact support for assistance.'],
+      ['a number', 500, 'Something went wrong. Please try again or contact support for assistance.'],
       ['a numbered-parameter', 'The "%1" cart has no items.', 'The "quote_1" cart has no items.', ['quote_1']],
       [
         'a named-parameter',
