@@ -5,6 +5,7 @@ namespace PublicSquare\Payments\Gateway\Command;
 use Magento\Payment\Gateway\CommandInterface;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Model\CvvRecollection\PaymentGuard;
 
 class CaptureCommand implements CommandInterface
 {
@@ -18,12 +19,19 @@ class CaptureCommand implements CommandInterface
      */
     private $paymentExecutor;
 
+    /**
+     * @var \PublicSquare\Payments\Model\CvvRecollection\PaymentGuard
+     */
+    private $cvvPaymentGuard;
+
     public function __construct(
         Logger $logger,
-        PaymentExecutor $paymentExecutor
+        PaymentExecutor $paymentExecutor,
+        PaymentGuard $cvvPaymentGuard
     ) {
         $this->logger = $logger;
         $this->paymentExecutor = $paymentExecutor;
+        $this->cvvPaymentGuard = $cvvPaymentGuard;
     }
 
     public function execute(array $commandSubject)
@@ -43,6 +51,12 @@ class CaptureCommand implements CommandInterface
                 $this->paymentExecutor->throwUserFriendlyException(new \Exception('Card not found'));
             }
             $payment->setAdditionalInformation('cardId', $card_id);
+
+            // Saved card to a new shipping address: the CVV must have been re-entered (throws if it never was).
+            $requireFreshCvc = $this->cvvPaymentGuard->check($payment, $public_hash);
+            if ($requireFreshCvc) {
+                $commandSubject['require_fresh_cvc'] = $requireFreshCvc;
+            }
         }
 
         if ($commandSubject["amount"] > 0) {

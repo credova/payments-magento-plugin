@@ -27,6 +27,7 @@
       "Magento\\": "tests/unit/stubs/Magento/",
       "Monolog\\": "tests/unit/stubs/Monolog/",
       "Symfony\\": "tests/unit/stubs/Symfony/",
+      "Laminas\\": "tests/unit/stubs/Laminas/",
       "PublicSquare\\Payments\\": "tests/unit/stubs/PublicSquare/Payments/"
     },
     "files": [
