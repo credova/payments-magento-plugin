@@ -10,6 +10,7 @@ use PublicSquare\Payments\Api\Authenticated\PaymentCreate;
 use PublicSquare\Payments\Exception\ApiDeclinedResponseException;
 use PublicSquare\Payments\Exception\ApiFailedResponseException;
 use PublicSquare\Payments\Exception\ApiRejectedResponseException;
+use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Test\Unit\Api\FakeHttpClient;
@@ -255,6 +256,52 @@ class PaymentCreateTest extends TestCase
         $this->assertSame('reject', $context['fraud_decision']);
         $this->assertSame(['kount #42 - Velocity limit', 'psq #7 - Country mismatch'], $context['fraud_rules']);
         $this->assertSame($fraud, $context['response']['fraud_details']);
+    }
+
+    /** PublicSquare's card security code rule: a saved card shipping to a new address without a fresh CVV. */
+    public function testAsksForTheCvvAgainWhenARuleRequiresIt(): void
+    {
+        $this->client = new FakeHttpClient(json_encode([
+            'id' => 'pmt_1',
+            'status' => 'rejected',
+            'declined_reason' => 'Re-enter your card security code to ship to a new address.',
+            'fraud_details' => ['decision' => 'reject', 'rules' => [[
+                'rule_engine' => 'internal',
+                'rule_id' => 'rule_merchant_specific',
+                'rule_description' => 'New shipping address needs card security code',
+                'requires_action' => 'card_security_code',
+            ]]],
+        ]));
+
+        $this->expectException(CvvRecollectionRequiredException::class);
+        $this->expectExceptionMessage("Please re-enter your card's security code to continue.");
+        $this->paymentCreate()->getResponseData();
+    }
+
+    public function testKeepsTheGenericMessageForOtherRuleRejects(): void
+    {
+        $this->client = new FakeHttpClient(json_encode([
+            'id' => 'pmt_1',
+            'status' => 'rejected',
+            'fraud_details' => ['decision' => 'reject', 'rules' => [['rule_engine' => 'internal', 'rule_id' => 'rule_x']]],
+        ]));
+
+        $this->expectException(ApiRejectedResponseException::class);
+        $this->expectExceptionMessage('The payment could not be completed. Please verify your details and try again.');
+        $this->paymentCreate()->getResponseData();
+    }
+
+    public function testGivesACvvMismatchItsOwnMessage(): void
+    {
+        $this->client = new FakeHttpClient(json_encode([
+            'id' => 'pmt_1',
+            'status' => 'rejected',
+            'payment_method' => ['card' => ['cvv2_reply' => 'N']],
+        ]));
+
+        $this->expectException(ApiRejectedResponseException::class);
+        $this->expectExceptionMessage("The security code didn't match. Please check it and try again.");
+        $this->paymentCreate()->getResponseData();
     }
 
     public function testSendsTheRequestOnceAndReusesTheResponse(): void
