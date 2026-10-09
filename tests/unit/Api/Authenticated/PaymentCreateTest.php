@@ -176,6 +176,8 @@ class PaymentCreateTest extends TestCase
                 'The payment could not be completed. Please verify your details and try again.'],
             'declined with a reason' => [['status' => 'declined', 'declined_reason' => 'insufficient_funds'],
                 ApiDeclinedResponseException::class, 'The payment could not be processed. Reason: insufficient_funds'],
+            'declined without a reason' => [['status' => 'declined'], ApiDeclinedResponseException::class,
+                'The payment could not be processed. Reason: declined'],
             'failed' => [['status' => 'failed'], ApiFailedResponseException::class, 'Something went wrong. Please try again.'],
             'an unknown status' => [['status' => 'pending'], ApiFailedResponseException::class,
                 'The payment could not be completed. Please verify your details and try again.'],

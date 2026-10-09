@@ -3,10 +3,12 @@
 namespace PublicSquare\Payments\Test\Unit\Api\Authenticated;
 
 use Laminas\Http\ClientFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Api\Authenticated\PaymentCancel;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
+use PublicSquare\Payments\Exception\ApiDeclinedResponseException;
 use PublicSquare\Payments\Exception\ApiFailedResponseException;
 use PublicSquare\Payments\Helper\Api;
 use PublicSquare\Payments\Helper\Config;
@@ -56,6 +58,24 @@ class PaymentFollowUpRequestsTest extends TestCase
 
         $this->assertSame('https://api.publicsquare.com/payments/pmt_1', $this->client->uri);
         $this->assertSame(['external_id' => '100000123'], $this->client->json());
+    }
+
+    public static function declinedRequests(): array
+    {
+        return [
+            'capture' => ['capture', 'The payment could not be processed. Reason: declined'],
+            'cancel' => ['cancel', 'The payment could not be canceled. Reason: declined'],
+        ];
+    }
+
+    #[DataProvider('declinedRequests')]
+    public function testSaysDeclinedWhenADeclineHasNoReason(string $request, string $message): void
+    {
+        $this->client = new FakeHttpClient('{"id":"pmt_1","status":"declined"}');
+
+        $this->expectException(ApiDeclinedResponseException::class);
+        $this->expectExceptionMessage($message);
+        ($request === 'capture' ? $this->capture(19.99) : $this->cancel())->getResponseData();
     }
 
     private function capture(float $amount): PaymentCapture

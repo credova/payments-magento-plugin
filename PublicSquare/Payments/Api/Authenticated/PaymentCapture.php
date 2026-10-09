@@ -85,8 +85,7 @@ class PaymentCapture extends \PublicSquare\Payments\Api\ApiRequestAbstract
             throw new ApiDeclinedResponseException(
                 __(
                     "The payment could not be processed. Reason: " .
-                        $data["declined_reason"] ??
-                        "declined"
+                        ($data["declined_reason"] ?? "declined")
                 )
             );
         }

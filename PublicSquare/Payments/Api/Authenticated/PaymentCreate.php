@@ -40,12 +40,11 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         string                               $phone,
         string                               $email,
         \Magento\Quote\Model\Quote\Address   $billingAddress,
-                                             $shippingAddress = null,
-                                             $idempotencyKey = null,
-                                             $externalId = "",
-                                             $deviceInformation = null,
-    )
-    {
+        $shippingAddress = null,
+        $idempotencyKey = null,
+        $externalId = "",
+        $deviceInformation = null,
+    ) {
         parent::__construct($clientFactory, $configHelper, $logger);
         if ($idempotencyKey) {
             // Include externalId to ensure uniqueness across multishipping orders created in a single submit
@@ -123,8 +122,7 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         $phoneNumber = str_replace(" ", "-", $rawPhoneNumber);
         $phoneNumber = preg_replace("/\D+/", "", $phoneNumber);
 
-        if (
-            preg_match('/(\d{3})(\d{3})(\d{4})$/', $phoneNumber, $matches)
+        if (preg_match('/(\d{3})(\d{3})(\d{4})$/', $phoneNumber, $matches)
         ) {
             $phoneNumber =
                 $matches[1] . "-" . $matches[2] . "-" . $matches[3];
@@ -183,8 +181,7 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
             throw new ApiDeclinedResponseException(
                 __(
                     "The payment could not be processed. Reason: " .
-                    $data["declined_reason"] ??
-                    "declined",
+                    ($data["declined_reason"] ?? "declined"),
                 ),
             );
         }
