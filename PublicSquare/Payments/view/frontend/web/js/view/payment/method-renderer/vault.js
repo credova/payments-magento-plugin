@@ -225,6 +225,14 @@ define([
         this.cvcErrorMessage($t("We couldn't save the security code. Please check it and try again."));
         return false;
       }
+      // DEV ONLY (spike, not for merge): feeds the simulated card security code rule. See Dev/README.md.
+      if (window.checkoutConfig.payment.publicsquare_payments.devSimulateCvcStepUpRule) {
+        await storage.post(
+          urlBuilder.createUrl('/publicsquare/carts/mine/dev/cvc-updated', {}),
+          JSON.stringify({ cardId: this.cvcCardId }),
+          false,
+        );
+      }
       return true;
     },
 
