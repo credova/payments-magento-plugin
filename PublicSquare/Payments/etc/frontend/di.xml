@@ -16,6 +16,8 @@
         <arguments>
             <argument name="configProviders" xsi:type="array">
                 <item name="publicsquare_payments" xsi:type="object">PublicSquare\Payments\Model\ConfigProvider</item>
+                <!-- DEV ONLY (spike, not for merge): simulated require_fresh_cvc. See Dev/README.md. -->
+                <item name="publicsquare_payments_dev_fresh_cvc" xsi:type="object">PublicSquare\Payments\Dev\CheckoutConfigProvider</item>
             </argument>
         </arguments>
     </type>

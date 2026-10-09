@@ -211,6 +211,14 @@ define([
         this.cvcErrorMessage($t("We couldn't save the security code. Please check it and try again."));
         return false;
       }
+      // DEV ONLY (spike, not for merge): feeds the simulated require_fresh_cvc check. See Dev/README.md.
+      if (window.checkoutConfig.payment.publicsquare_payments.devSimulateRequireFreshCvc) {
+        await storage.post(
+          urlBuilder.createUrl('/publicsquare/carts/mine/dev/cvc-updated', {}),
+          JSON.stringify({ cardId: this.cvcCardId, modifiedAt: result.modified_at }),
+          false,
+        );
+      }
       return true;
     },
 
