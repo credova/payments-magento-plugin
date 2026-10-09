@@ -43,6 +43,10 @@ class Config extends AbstractHelper implements ICardInputCustomizationJSON
     const DYN_DESC_ENABLED = 'payment/publicsquare_payments/dynamic_descriptor_enabled';
     const DYN_DESC_MERCHANT = 'payment/publicsquare_payments/dynamic_descriptor_merchant';
     const DYN_DESC_MERCHANT_CONTACT = 'payment/publicsquare_payments/dynamic_descriptor_merchant_contact';
+    const PUBLICSQUARE_REQUIRE_CVV_NEW_SHIPPING_ADDRESS = 'payment/publicsquare_payments/require_cvv_new_shipping_address';
+    const PUBLICSQUARE_SEND_REQUIRE_FRESH_CVC = 'payment/publicsquare_payments/send_require_fresh_cvc';
+    const PUBLICSQUARE_FRESH_CVC_MAX_AGE_SECONDS = 'payment/publicsquare_payments/fresh_cvc_max_age_seconds';
+    const DEFAULT_FRESH_CVC_MAX_AGE_SECONDS = 1800;
 
     /**
      * @var \Magento\Framework\Serialize\Serializer\Json
@@ -191,6 +195,57 @@ class Config extends AbstractHelper implements ICardInputCustomizationJSON
         return (bool)$this->scopeConfig
             ->getValue(self::PUBLICSQUARE_CUSTOMER_LOOKUP, $scopeType, $scopeCode);
     } //end getGuestCheckoutCustomerLookup()
+
+    /**
+     * Whether a saved card shipping to a new address must have its CVV re-entered
+     *
+     * @param string $scopeType
+     * @param null $scopeCode
+     * @return boolean
+     */
+    public function isCvvRecollectionEnabled(
+        $scopeType = \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+        $scopeCode = null,
+    ): bool
+    {
+        return (bool)$this->scopeConfig
+            ->getValue(self::PUBLICSQUARE_REQUIRE_CVV_NEW_SHIPPING_ADDRESS, $scopeType, $scopeCode);
+    } //end isCvvRecollectionEnabled()
+
+    /**
+     * Whether payments ask PublicSquare to verify the CVV was re-entered (require_fresh_cvc)
+     *
+     * Only applies when CVV recollection itself is enabled.
+     *
+     * @param string $scopeType
+     * @param null $scopeCode
+     * @return boolean
+     */
+    public function isFreshCvcCheckEnabled(
+        $scopeType = \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+        $scopeCode = null,
+    ): bool
+    {
+        return $this->isCvvRecollectionEnabled($scopeType, $scopeCode)
+            && (bool)$this->scopeConfig->getValue(self::PUBLICSQUARE_SEND_REQUIRE_FRESH_CVC, $scopeType, $scopeCode);
+    } //end isFreshCvcCheckEnabled()
+
+    /**
+     * How long, in seconds, a CVV request stays valid
+     *
+     * @param string $scopeType
+     * @param null $scopeCode
+     * @return int
+     */
+    public function getFreshCvcMaxAgeSeconds(
+        $scopeType = \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+        $scopeCode = null,
+    ): int
+    {
+        $value = (int)$this->scopeConfig
+            ->getValue(self::PUBLICSQUARE_FRESH_CVC_MAX_AGE_SECONDS, $scopeType, $scopeCode);
+        return $value > 0 ? $value : self::DEFAULT_FRESH_CVC_MAX_AGE_SECONDS;
+    } //end getFreshCvcMaxAgeSeconds()
 
     /**
      * Get publicsquare payment capture action
