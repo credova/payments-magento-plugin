@@ -42,3 +42,20 @@ export function instantiate(spec, overrides = {}) {
   Object.assign(instance, spec.defaults, { _super: vi.fn(() => true) }, overrides);
   return instance;
 }
+
+/**
+ * An observable that also supports subscribe, like quote.paymentMethod and quote.totals.
+ */
+export function subscribable(initial) {
+  const read = observable(initial);
+  const subscribers = [];
+  const obs = function (next) {
+    if (arguments.length) {
+      read(next);
+      subscribers.forEach((callback) => callback(next));
+    }
+    return read();
+  };
+  obs.subscribe = (callback) => subscribers.push(callback);
+  return obs;
+}
