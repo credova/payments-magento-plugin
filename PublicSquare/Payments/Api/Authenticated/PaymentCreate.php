@@ -15,6 +15,7 @@ namespace PublicSquare\Payments\Api\Authenticated;
 use PublicSquare\Payments\Exception\ApiDeclinedResponseException;
 use PublicSquare\Payments\Exception\ApiFailedResponseException;
 use PublicSquare\Payments\Exception\ApiRejectedResponseException;
+use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 
 class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
 {
@@ -44,6 +45,7 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
                                              $idempotencyKey = null,
                                              $externalId = "",
                                              $deviceInformation = null,
+        ?array                               $requireFreshCvc = null,
     )
     {
         parent::__construct($clientFactory, $configHelper, $logger);
@@ -116,6 +118,11 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         if ($deviceInformation) {
             $this->requestData['device_information'] = $deviceInformation;
         }
+        if ($requireFreshCvc) {
+            // Saved card to a new address: PublicSquare rejects the payment unless the card's CVV was
+            // updated after updated_after (cvv_recollection_required).
+            $this->requestData['require_fresh_cvc'] = $requireFreshCvc;
+        }
     } //end __construct()
 
     static function formatPhoneNumber(string $rawPhoneNumber): string
@@ -165,12 +172,24 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
     {
         $status = $data["status"] ?? "";
 
+        if ($this->isCvvRecollectionRequired($data)) {
+            $this->logger->warning("PSQ Payment needs the card's CVV re-entered", [
+                "response" => $this->getSanitizedResponseData(),
+            ]);
+            throw CvvRecollectionRequiredException::create();
+        }
+
         try {
             $this->checkResponseStatus($data);
         } catch (ApiRejectedResponseException $e) {
             $this->logger->error("PSQ Payment rejected", [
                 "response" => $this->getSanitizedResponseData(),
             ]);
+            if (($data["payment_method"]["card"]["cvv2_reply"] ?? null) === "N") {
+                throw new ApiRejectedResponseException(
+                    __("The security code didn't match. Please check it and try again."),
+                );
+            }
             throw new ApiRejectedResponseException(
                 __(
                     "The payment could not be completed. Please verify your details and try again.",
@@ -205,4 +224,23 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
             );
         }
     } //end validateResponse()
+
+    /**
+     * Whether PublicSquare rejected the payment because the CVV wasn't updated after updated_after.
+     *
+     * The exact error shape isn't final, so this accepts the code at the top level or in an errors list.
+     */
+    private function isCvvRecollectionRequired(mixed $data): bool
+    {
+        if (!is_array($data)) {
+            return false;
+        }
+        $codes = [$data["error_code"] ?? null, $data["code"] ?? null];
+        foreach ((array)($data["errors"] ?? []) as $error) {
+            if (is_array($error)) {
+                $codes[] = $error["error_code"] ?? $error["code"] ?? null;
+            }
+        }
+        return in_array("cvv_recollection_required", $codes, true);
+    }
 } //end class

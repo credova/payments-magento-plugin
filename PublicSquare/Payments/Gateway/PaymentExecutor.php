@@ -426,6 +426,7 @@ class PaymentExecutor
 					"billingAddress" => $billingAddress,
 					"externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
 					"deviceInformation" => $this->getDeviceInformation(),
+					"requireFreshCvc" => $commandSubject['require_fresh_cvc'] ?? null,
 				])->getResponseData();
 				$this->setPaymentFromPSQResponse($payment, $response);
 			} else {
