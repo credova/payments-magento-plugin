@@ -89,6 +89,39 @@ describe('publicsquare_payments', () => {
       expect(loader.init).toHaveBeenCalledTimes(2);
       expect(elements[0].mount).toHaveBeenCalledWith('#publicsquare-elements-form');
     });
+
+    it.each([
+      [
+        'the card element cannot be created',
+        (sdk) =>
+          sdk.createCardElement.mockImplementationOnce(() => {
+            throw new Error('bad customization');
+          }),
+      ],
+      [
+        'the card element cannot mount',
+        (sdk) =>
+          sdk.createCardElement.mockImplementationOnce(() => ({
+            mount: () => {
+              throw new Error('selector not found');
+            },
+            unmount: vi.fn(),
+          })),
+      ],
+    ])('mounts the card form on the next call after %s', async (_reason, breakSetup) => {
+      const { loader, sdk, elements } = fakeSdkLoader();
+      breakSetup(sdk);
+      const payments = loadPayments(loader);
+      const callback = vi.fn();
+
+      await expect(payments.initElements(params)).rejects.toThrow();
+      await payments.initElements(params, callback);
+
+      expect(loader.init).toHaveBeenCalledTimes(1);
+      expect(elements.at(-1).mount).toHaveBeenCalledWith('#publicsquare-elements-form');
+      expect(payments.cardElement).toBe(elements.at(-1));
+      expect(callback).toHaveBeenCalledWith(payments);
+    });
   });
 
   describe('createCard', () => {
