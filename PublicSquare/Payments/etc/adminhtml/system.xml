@@ -74,6 +74,33 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <config_path>payment/publicsquare_payments_cc_vault/active</config_path>
                 </field>
+                <field id="require_cvv_new_shipping_address" translate="label comment" type="select" sortOrder="19" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Require CVV for New Shipping Addresses</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[When a customer pays with a saved card and ships to an address that card hasn't shipped to on an earlier order, ask them to re-enter the card's CVV before the order is placed.]]></comment>
+                    <depends>
+                        <field id="publicsquare_payments_cc_vault">1</field>
+                    </depends>
+                </field>
+                <field id="send_require_fresh_cvc" translate="label comment" type="select" sortOrder="19" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Verify CVV Re-entry with PublicSquare</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Ask PublicSquare to reject the payment unless the card's CVV was updated after the customer was asked for it. Leave this off until your PublicSquare account supports it.]]></comment>
+                    <depends>
+                        <field id="publicsquare_payments_cc_vault">1</field>
+                        <field id="require_cvv_new_shipping_address">1</field>
+                    </depends>
+                </field>
+                <field id="fresh_cvc_max_age_seconds" translate="label comment" type="text" sortOrder="19" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>CVV Re-entry Time Limit (seconds)</label>
+                    <comment><![CDATA[How long a CVV request stays valid. A customer who returns to checkout after this is asked for the CVV again.]]></comment>
+                    <validate>required-entry validate-digits validate-greater-than-zero</validate>
+                    <depends>
+                        <field id="publicsquare_payments_cc_vault">1</field>
+                        <field id="require_cvv_new_shipping_address">1</field>
+                        <field id="send_require_fresh_cvc">1</field>
+                    </depends>
+                </field>
                 <field id="customer_lookup" translate="label" type="select" sortOrder="19" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Guest Checkout Customer Lookup</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>

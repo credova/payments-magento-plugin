@@ -26,6 +26,9 @@
                 <payment_action>authorize_capture</payment_action>
                 <avs_check>1</avs_check>
                 <customer_lookup>1</customer_lookup>
+                <require_cvv_new_shipping_address>0</require_cvv_new_shipping_address>
+                <send_require_fresh_cvc>0</send_require_fresh_cvc>
+                <fresh_cvc_max_age_seconds>1800</fresh_cvc_max_age_seconds>
                 <!-- What can we do? -->
                 <is_gateway>1</is_gateway>
                 <can_authorize>1</can_authorize>
