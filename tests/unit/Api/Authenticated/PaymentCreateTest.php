@@ -178,6 +178,8 @@ class PaymentCreateTest extends TestCase
                 ApiDeclinedResponseException::class, 'The payment could not be processed. Reason: insufficient_funds'],
             'declined without a reason' => [['status' => 'declined'], ApiDeclinedResponseException::class,
                 'The payment could not be processed. Reason: declined'],
+            'declined with an empty reason' => [['status' => 'declined', 'declined_reason' => ''],
+                ApiDeclinedResponseException::class, 'The payment could not be processed. Reason: declined'],
             'failed' => [['status' => 'failed'], ApiFailedResponseException::class, 'Something went wrong. Please try again.'],
             'an unknown status' => [['status' => 'pending'], ApiFailedResponseException::class,
                 'The payment could not be completed. Please verify your details and try again.'],
@@ -226,6 +228,7 @@ class PaymentCreateTest extends TestCase
                 'PSQ Payment declined: insufficient_funds'],
             'declined without a reason' => [['status' => 'declined'], 'PSQ Payment declined: not provided'],
             'rejected by fraud rules' => [['status' => 'rejected'], 'PSQ Payment rejected'],
+            'failed' => [['status' => 'failed'], 'PSQ Payment failed'],
         ];
     }
 

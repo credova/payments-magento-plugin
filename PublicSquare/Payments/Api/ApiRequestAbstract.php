@@ -84,7 +84,6 @@ abstract class ApiRequestAbstract
         \PublicSquare\Payments\Helper\Config $configHelper,
         \PublicSquare\Payments\Logger\Logger $logger
     ) {
-        $this->clientFactory = $clientFactory->create();
         $this->clientFactory = $clientFactory;
         $this->configHelper  = $configHelper;
         $this->logger        = $logger;
@@ -319,6 +318,17 @@ abstract class ApiRequestAbstract
             ),
             'response' => $this->getSanitizedResponseData(),
         ]);
+    }
+
+    /**
+     * Returns the decline reason from a PublicSquare response, or null when the response has none.
+     *
+     * @param array $data The decoded PublicSquare response.
+     */
+    protected function declinedReason(array $data): ?string
+    {
+        $reason = $data['declined_reason'] ?? null;
+        return is_scalar($reason) && (string) $reason !== '' ? (string) $reason : null;
     }
 
     public function checkResponseStatus($responseData): bool

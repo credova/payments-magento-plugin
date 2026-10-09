@@ -7,6 +7,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Api\Authenticated\PaymentCancel;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
+use PublicSquare\Payments\Api\Authenticated\PaymentRefund;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
 use PublicSquare\Payments\Exception\ApiDeclinedResponseException;
 use PublicSquare\Payments\Exception\ApiFailedResponseException;
@@ -94,11 +95,21 @@ class PaymentFollowUpRequestsTest extends TestCase
 
         try {
             ($request === 'capture' ? $this->capture(19.99) : $this->cancel())->getResponseData();
+            $this->fail('A declined payment must throw.');
         } catch (ApiDeclinedResponseException) {
         }
 
         $this->assertSame($logMessage, end($this->logger->messages)[0]);
         $this->assertSame([], end($this->logger->messages)[1]['fraud_rules']);
+    }
+
+    public function testRefundSaysDeclinedWhenADeclineHasNoReason(): void
+    {
+        $this->client = new FakeHttpClient('{"id":"ref_1","status":"declined"}');
+
+        $this->expectException(ApiDeclinedResponseException::class);
+        $this->expectExceptionMessage('The Refund could not be processed. Reason: declined');
+        (new PaymentRefund($this->clientFactory(), $this->config(), $this->logger, 1999, 'pmt_1'))->getResponseData();
     }
 
     private function capture(float $amount): PaymentCapture
