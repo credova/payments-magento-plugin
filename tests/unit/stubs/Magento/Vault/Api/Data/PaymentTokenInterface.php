@@ -41,4 +41,8 @@ interface PaymentTokenInterface
 
     function getId();
 
+    function getEntityId();
+
+    function getIsActive();
+
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Declarative schema
+ *
+ * @category  PublicSquare
+ * @package   PublicSquare_Payments
+ * @author    PublicSquare <info@publicsquare.com>
+ * @copyright 2024 PublicSquare
+ * @license   http://opensource.org/licenses/osl-3.0.php (OSL 3.0)
+ * @link https://publicsquare.com/
+ */
+ -->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="publicsquare_cvv_request" resource="checkout" engine="innodb" comment="When checkout first asked for a saved card's CVV, per cart and card">
+        <column xsi:type="int" name="entity_id" unsigned="true" nullable="false" identity="true" comment="Entity ID"/>
+        <column xsi:type="int" name="quote_id" unsigned="true" nullable="false" comment="Quote ID"/>
+        <column xsi:type="int" name="payment_token_id" unsigned="true" nullable="false" comment="Vault payment token ID"/>
+        <column xsi:type="datetime" name="requested_at" nullable="false" comment="First time the CVV was requested, in UTC"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="PUBLICSQUARE_CVV_REQUEST_QUOTE_ID_PAYMENT_TOKEN_ID">
+            <column name="quote_id"/>
+            <column name="payment_token_id"/>
+        </constraint>
+        <!-- Rows go away with their cart (Magento's quote cleanup cron) or saved card. -->
+        <constraint xsi:type="foreign" referenceId="PUBLICSQUARE_CVV_REQUEST_QUOTE_ID_QUOTE_ENTITY_ID"
+                    table="publicsquare_cvv_request" column="quote_id"
+                    referenceTable="quote" referenceColumn="entity_id" onDelete="CASCADE"/>
+        <constraint xsi:type="foreign" referenceId="PUBLICSQUARE_CVV_REQUEST_PAYMENT_TOKEN_ID_VAULT_PAYMENT_TOKEN_ENTITY_ID"
+                    table="publicsquare_cvv_request" column="payment_token_id"
+                    referenceTable="vault_payment_token" referenceColumn="entity_id" onDelete="CASCADE"/>
+    </table>
+</schema>

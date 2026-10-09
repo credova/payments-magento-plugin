@@ -1,0 +1,16 @@
+{
+    "publicsquare_cvv_request": {
+        "column": {
+            "entity_id": true,
+            "quote_id": true,
+            "payment_token_id": true,
+            "requested_at": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "PUBLICSQUARE_CVV_REQUEST_QUOTE_ID_PAYMENT_TOKEN_ID": true,
+            "PUBLICSQUARE_CVV_REQUEST_QUOTE_ID_QUOTE_ENTITY_ID": true,
+            "FK_D76C1B8DC1CD41F29470A9AEDC5056FD": true
+        }
+    }
+}
