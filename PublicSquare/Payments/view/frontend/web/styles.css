@@ -19,3 +19,14 @@
 .payment-method-vault-checkbox {
   margin-bottom: 1em;
 }
+
+.psq-cvv-recollection-field {
+  max-width: 10em;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  padding: 4px 4px 4px 12px;
+}
+
+.psq-cvv-recollection {
+  margin-bottom: 1em;
+}
