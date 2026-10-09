@@ -15,6 +15,7 @@ namespace PublicSquare\Payments\Api\Authenticated;
 use PublicSquare\Payments\Exception\ApiDeclinedResponseException;
 use PublicSquare\Payments\Exception\ApiFailedResponseException;
 use PublicSquare\Payments\Exception\ApiRejectedResponseException;
+use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 
 class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
 {
@@ -166,6 +167,14 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
             $this->checkResponseStatus($data);
         } catch (ApiRejectedResponseException $e) {
             $this->logRefusedPayment("PSQ Payment rejected", $data);
+            if ($this->requiresCardSecurityCode($data)) {
+                throw CvvRecollectionRequiredException::create();
+            }
+            if (($data["payment_method"]["card"]["cvv2_reply"] ?? null) === "N") {
+                throw new ApiRejectedResponseException(
+                    __("The security code didn't match. Please check it and try again."),
+                );
+            }
             throw new ApiRejectedResponseException(
                 __(
                     "The payment could not be completed. Please verify your details and try again.",
@@ -198,4 +207,18 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
             );
         }
     } //end validateResponse()
+
+    /**
+     * Whether a fraud rule rejected the payment until the shopper re-enters the card's security code: PublicSquare's
+     * card security code rule for a saved card shipping to a new address.
+     */
+    private function requiresCardSecurityCode(mixed $data): bool
+    {
+        foreach ((array)($data["fraud_details"]["rules"] ?? []) as $rule) {
+            if (is_array($rule) && ($rule["requires_action"] ?? null) === "card_security_code") {
+                return true;
+            }
+        }
+        return false;
+    }
 } //end class
