@@ -4,28 +4,46 @@
 // @version    4.0.8
 define(['publicsquarejs'], function (publicsquarejs) {
   'use strict';
+
+  // Replaces the card element. It is kept only once it mounts, so a failed mount leaves no half-made element.
+  function mountCardElement(payments, params) {
+    if (payments.cardElement) {
+      payments.cardElement.unmount();
+      payments.cardElement = null;
+    }
+    const cardElement = payments.publicsquareJs.createCardElement(params.cardInputCustomization);
+    cardElement.mount(params.selector);
+    payments.cardElement = cardElement;
+  }
+
   return (window.publicsquare = {
     // Properties
     version: '1.0.0',
     publicsquareJs: null,
     cardElement: null,
     loading: false,
+    initializing: null,
 
     initElements: async function (params = {}, callback) {
-      if (!this.publicsquareJs && !this.loading) {
+      if (this.initializing) {
+        // A call during the SDK load waits for it, so its callback sees the mounted card element.
+        await this.initializing;
+      } else if (!this.publicsquareJs && !this.loading) {
         this.loading = true;
-        const _publicsquare = await publicsquarejs.init(params.apiKey);
-        this.publicsquareJs = _publicsquare;
-        if (this.cardElement) {
-          this.cardElement.unmount();
+        this.initializing = (async () => {
+          this.publicsquareJs = await publicsquarejs.init(params.apiKey);
+          mountCardElement(this, params);
+        })();
+        // Reset on failure too, or a failed SDK load blocks every later attempt.
+        try {
+          await this.initializing;
+        } finally {
+          this.loading = false;
+          this.initializing = null;
         }
-        this.cardElement = _publicsquare.createCardElement(params.cardInputCustomization);
-        this.cardElement.mount(params.selector);
-        this.loading = false;
-      } else if (!this.loading && this.cardElement) {
-        this.cardElement.unmount();
-        this.cardElement = this.publicsquareJs.createCardElement(params.cardInputCustomization);
-        this.cardElement.mount(params.selector);
+      } else if (!this.loading) {
+        // The SDK is ready. This also retries a first mount that failed after the SDK loaded.
+        mountCardElement(this, params);
       }
       if (typeof callback === 'function') {
         callback(this);
@@ -44,12 +62,15 @@ define(['publicsquarejs'], function (publicsquarejs) {
           throw new Error('PublicSquare is still loading');
         }
         this.loading = true;
-        const newCard = await this.publicsquareJs.cards.create({
-          cardholder_name,
-          card,
-        });
-        this.loading = false;
-        return newCard;
+        // Reset on failure too, so the shopper can retry after a declined card.
+        try {
+          return await this.publicsquareJs.cards.create({
+            cardholder_name,
+            card,
+          });
+        } finally {
+          this.loading = false;
+        }
       }
     },
   });
