@@ -23,6 +23,8 @@ define([
   'Magento_Ui/js/model/messageList',
   'Magento_Customer/js/model/customer',
   'Magento_Checkout/js/model/place-order',
+  'underscore',
+  'PublicSquare_Payments/js/model/order-error',
 ], function (
   $,
   Component,
@@ -37,8 +39,14 @@ define([
   messageList,
   customer,
   placeOrderService,
+  _,
+  orderError,
 ) {
   'use strict';
+
+  // Magento's place-order shows the raw server error in the message container it gets. This one
+  // shows nothing, so the shopper sees only the renderer's message. A 401 still goes to login.
+  const placeOrderMessages = { addErrorMessage: () => true };
 
   return Component.extend({
     defaults: {
@@ -99,13 +107,15 @@ define([
           await self.placeOrderWithCardId(card.id);
         } catch (error) {
           fullScreenLoader.stopLoader();
-          messageList.addErrorMessage({
-            message: $t(
-              error.responseJSON && error.responseJSON.message ? error.responseJSON.message : self.errorMessage,
-            ),
-          });
-          self.idempotencyKey = self.generateIdempotencyKey();
+          if (orderError.isFinal(error)) {
+            self.idempotencyKey = self.generateIdempotencyKey();
+          }
           self.submitting = false;
+          const errorMessage = self.getErrorMessage(error);
+          console.log('publicsquare_payments-method: Failed to place order! %s', errorMessage);
+          messageList.addErrorMessage({
+            message: $t(errorMessage),
+          });
         }
       } else {
         messageList.addErrorMessage({
@@ -133,40 +143,27 @@ define([
         if (quote.getItems().every((_) => _.product_type === 'virtual')) {
           let billingAddress = quote.billingAddress();
 
-          console.log('publicsquare_payments-method: Found address on quote! %j', billingAddress);
+          console.log('publicsquare_payments-method: Found address on quote! %o', billingAddress);
           placeOrderReqBody.billingAddress = billingAddress;
         }
       } else {
         placeOrderReqBody.email = quote.guestEmail;
       }
-      return placeOrderService(serviceUrl, placeOrderReqBody, messageList)
-        .then(() => {
-          const maskId = window.checkoutConfig.quoteData.entity_id;
-          const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
-          $.mage.redirect(successUrl);
-        })
-        .fail(function (response) {
-          fullScreenLoader.stopLoader();
-          self.submitting = false;
-
-          // Extract the error message from the response
-          let errorMessage = self.errorMessage;
-          if (response.responseJSON && response.responseJSON.message) {
-            try {
-              // Sometimes the message might be JSON encoded
-              const decodedMessage = JSON.parse(response.responseJSON.message);
-              errorMessage = decodedMessage.message || decodedMessage;
-            } catch {
-              // If not JSON, use the message directly
-              errorMessage = response.responseJSON.message;
-            }
-          }
-          console.log('publicsquare_payments-method: Failed to place order! %j', errorMessage);
-
-          messageList.addErrorMessage({
-            message: $t(errorMessage),
-          });
-        });
+      // A failure rejects to the catch in placeOrder, which shows the error.
+      return placeOrderService(serviceUrl, placeOrderReqBody, placeOrderMessages).then(() => {
+        const maskId = window.checkoutConfig.quoteData.entity_id;
+        const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
+        $.mage.redirect(successUrl);
+      });
+    },
+    /**
+     * Gets the message to show for a failed tokenization or order request.
+     *
+     * @param {*} error The rejection value, such as a jqXHR or an Error.
+     * @returns {String}
+     */
+    getErrorMessage: function (error) {
+      return orderError.message(error, this.errorMessage);
     },
     /**
      * @returns {Object}

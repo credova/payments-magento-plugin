@@ -15,6 +15,8 @@ define([
   'Magento_Customer/js/model/customer',
   'Magento_Checkout/js/model/place-order',
   'Magento_Checkout/js/model/quote',
+  'underscore',
+  'PublicSquare_Payments/js/model/order-error',
 ], function (
   $,
   VaultComponent,
@@ -26,8 +28,14 @@ define([
   customer,
   placeOrderService,
   quote,
+  _,
+  orderError,
 ) {
   'use strict';
+
+  // Magento's place-order shows the raw server error in the message container it gets. This one
+  // shows nothing, so the shopper sees only the renderer's message. A 401 still goes to login.
+  const placeOrderMessages = { addErrorMessage: () => true };
 
   return VaultComponent.extend({
     defaults: {
@@ -90,6 +98,7 @@ define([
     },
 
     placeOrderWithCardId: function () {
+      var self = this;
       fullScreenLoader.startLoader();
       var serviceUrl = urlBuilder.createUrl(
         customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
@@ -104,7 +113,7 @@ define([
           ...(!customer.isLoggedIn() && { email: quote.guestEmail }),
           paymentMethod: this.getData(),
         },
-        messageList,
+        placeOrderMessages,
       )
         .done(function () {
           // Handle successful order placement
@@ -112,9 +121,13 @@ define([
           const successUrl = `${window.checkoutConfig.payment.publicsquare_payments.successUrl}?${window.checkoutConfig.isCustomerLoggedIn ? 'refercust' : 'refergues'}=${maskId}`;
           $.mage.redirect(successUrl);
         })
-        .fail(function () {
+        .fail(function (response) {
+          // After a final failure, a retry with the same key would replay it.
+          if (orderError.isFinal(response)) {
+            self.idempotencyKey = self.generateIdempotencyKey();
+          }
           messageList.addErrorMessage({
-            message: $t('Something went wrong. Please try again or contact support for assistance.'),
+            message: $t(orderError.message(response)),
           });
         })
         .always(function () {
