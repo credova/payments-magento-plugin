@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
+import { settle } from '../helpers/settle.js';
 
 const ADD_CARD = 'PublicSquare/Payments/view/frontend/web/js/add-card.js';
 
@@ -45,11 +46,6 @@ function startAddCard(config = { publicKey: 'pk_test_key', cardInputCustomizatio
     'mage/validation': {},
   })(config);
   return cardElement;
-}
-
-/** Waits for the module's async click handlers. */
-function settle() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 async function openForm() {
@@ -154,6 +150,31 @@ describe('add-card', () => {
   });
 
   describe('saving the card', () => {
+    // The save button is bound only after mount() succeeds, so a failed first mount leaves no save to run.
+    it('tokenizes the mounted card element after a failed first mount', async () => {
+      const mountedElement = startAddCard();
+      const brokenElement = {
+        mount: vi.fn(() => {
+          throw new Error('selector not found');
+        }),
+        metadata: { valid: true },
+      };
+      sdk.createCardElement.mockReturnValueOnce(brokenElement);
+      await openForm();
+      await saveCard();
+      expect(psqSdk.cards.create).not.toHaveBeenCalled();
+      $('#psq-cc-add-button').trigger('click');
+
+      await openForm();
+      await saveCard();
+
+      expect(sdk.createCardElement).toHaveBeenCalledTimes(2);
+      expect(psqSdk.cards.create).toHaveBeenCalledExactlyOnceWith({
+        cardholder_name: 'Jane Doe',
+        card: mountedElement,
+      });
+    });
+
     it('tokenizes the card, fills the vault form, and submits it', async () => {
       const cardElement = startAddCard();
       await openForm();

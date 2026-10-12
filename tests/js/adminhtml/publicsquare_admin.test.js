@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
+import { settle } from '../helpers/settle.js';
 
 const ADMIN = 'PublicSquare/Payments/view/adminhtml/web/js/publicsquare_admin.js';
 
@@ -44,11 +45,6 @@ function loadAdmin() {
     createCard: vi.fn(async () => ({ id: 'card_1' })),
   };
   return loadAmdModule(ADMIN, { jquery: $, publicsquare_payments: publicsquare });
-}
-
-/** Waits for the MutationObserver callbacks and the module's async submit. */
-function settle() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe('publicsquare_admin', () => {

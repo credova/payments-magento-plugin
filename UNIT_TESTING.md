@@ -319,6 +319,9 @@ Use the real jQuery from `node_modules`, because the renderers chain jQuery Defe
 use `placeOrder.mockImplementation(failedPlaceOrder(body))`. It fails the way Magento's place-order model does: it
 shows the server error in the message container that it gets, and then it rejects.
 
+A module that a template starts with `x-magento-init` returns a factory. Call that factory with the config the
+template sends, as `add-card.test.js` does.
+
 A fake must do what the real Magento or RequireJS code does. If a fake does less, the test can pass while the shopper
 sees a bug.
 

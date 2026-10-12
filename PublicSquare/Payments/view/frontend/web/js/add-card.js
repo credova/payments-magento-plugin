@@ -14,7 +14,6 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert', 'mage/validatio
     let $modal;
     let cardReady;
 
-    // cc elements bound by psq payments js
     let $card;
 
     async function save() {
@@ -96,7 +95,6 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert', 'mage/validatio
     }
 
     function closeForm() {
-      // Remove class last
       $modal.addClass('psq-add-card__form--hidden');
     }
 
@@ -114,7 +112,6 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert', 'mage/validatio
     }
 
     function openForm() {
-      // Add class first
       if (!$modal) {
         $modal = $('.psq-add-card__form');
       }
@@ -131,7 +128,6 @@ define(['jquery', 'publicsquarejs', 'Magento_Ui/js/modal/alert', 'mage/validatio
     }
 
     $('#psq-cc-add-button').click(async () => {
-      console.log('PSQ: Add CC button clicked. formVisible was %s', formVisible);
       formVisible = !formVisible;
       if (formVisible) {
         await openForm();
