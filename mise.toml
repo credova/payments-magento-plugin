@@ -131,6 +131,23 @@ bin/clinotty bin/magento setup:di:compile
 bin/clinotty bin/magento cache:flush
 '''
 
+[tasks."dev:admin-user"]
+description = "Create or reset a dev stack admin user (defaults to the acceptance suite's admin / AdminPassword1234)"
+dir = "{{config_root}}/magento-install"
+usage = '''
+arg "[username]" default="admin"
+arg "[password]" default="AdminPassword1234" help="At least 7 characters, with letters and numbers"
+flag "--email <email>" default="admin@example.com"
+'''
+# admin:user:create updates the password of an existing user. The unlock clears a lockout from failed logins.
+run = '''
+. "{{config_root}}/bin/lib/clean-path"
+set -euo pipefail
+bin/clinotty bin/magento admin:user:create --admin-user="${usage_username}" --admin-password="${usage_password}" \
+  --admin-email="${usage_email}" --admin-firstname=Dev --admin-lastname=Admin
+bin/clinotty bin/magento admin:user:unlock "${usage_username}"
+'''
+
 [tasks."dev:reset"]
 description = "Delete the dev stack, its volumes, and magento-install/"
 raw = true
