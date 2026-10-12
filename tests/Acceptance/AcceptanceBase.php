@@ -257,6 +257,8 @@ class AcceptanceBase
         $I->amOnPage('/joust-duffle-bag.html');
         $I->waitForElementClickable('button[title="Add to Cart"]');
         $I->click('Add to Cart');
+        // Add to Cart is an AJAX request. Leaving the page before it answers drops the request.
+        $I->waitForText('You added Joust Duffle Bag to your shopping cart.');
         $I->amOnPage('/checkout/cart/');
         $I->waitForText('Shopping Cart');
         $I->see('Joust Duffle Bag');
