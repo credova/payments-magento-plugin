@@ -43,10 +43,9 @@ define(['jquery', 'publicsquare_payments'], function ($, publicsquare) {
     }
   }
 
-  function observe() {
+  function watch() {
     const paymentMethods = document.querySelector('#edit_form');
     if (paymentMethods) {
-      renderElements();
       observer.observe(paymentMethods, {
         childList: true,
         subtree: true,
@@ -55,20 +54,31 @@ define(['jquery', 'publicsquare_payments'], function ($, publicsquare) {
     }
   }
 
+  function observe() {
+    if (document.querySelector('#edit_form')) {
+      renderElements();
+      watch();
+    }
+  }
+
   function renderElements() {
     element = $(elementsFormSelector);
     if (element.length && !element.children().length && !publicsquare.loading) {
       observer.disconnect();
       requestAnimationFrame(() => {
-        publicsquare.initElements(
-          {
-            apiKey: config.pk || '',
-            selector: elementsFormSelector,
-          },
-          () => {
-            observe();
-          },
-        );
+        publicsquare
+          .initElements(
+            {
+              apiKey: config.pk || '',
+              selector: elementsFormSelector,
+            },
+            () => {
+              observe();
+            },
+          )
+          // Magento can reload the payment block during the SDK load, so the mount target is gone. Watch again,
+          // so the next reload mounts the card form. A retry now could loop when the SDK cannot load.
+          .catch(watch);
       });
     }
     enableSubmitHandler();
