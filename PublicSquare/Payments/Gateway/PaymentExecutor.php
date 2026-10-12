@@ -277,7 +277,7 @@ class PaymentExecutor
                         'paymentId' => $transactionId,
                         'amount' => $amount
                     ])->getResponseData();
-                    $this->logger->info("Got refund response: ", ['id' => $refundResponse['id']]);
+                    $this->logger->info("Got refund response: ", ['id' => $refundResponse['id'] ?? null]);
                     // Capture the refund id and save it in the additional data JSON column.
                     if (isset($refundResponse['id'])) {
                         $additionalInfo = $payment->getAdditionalInformation() ?? [];

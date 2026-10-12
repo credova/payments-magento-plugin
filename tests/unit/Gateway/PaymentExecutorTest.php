@@ -295,6 +295,22 @@ class PaymentExecutorTest extends TestCase
         $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment));
     }
 
+    public function testLogsAWarningWhenTheRefundResponseHasNoId(): void
+    {
+        $payment = $this->authorizedPayment('succeeded');
+        $this->expectRequest(PaymentRefundFactory::class, PaymentRefund::class, ['status' => 'pending']);
+        // Magento's error handler turns a PHP warning into an exception in developer mode.
+        set_error_handler(fn (int $no, string $message) => throw new \ErrorException($message, 0, $no));
+        try {
+            $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment));
+        } finally {
+            restore_error_handler();
+        }
+
+        $this->assertSame('Refund ID not present on refund API response for payment.', $this->logger->lastMessage('warning'));
+        $this->assertNull($payment->getAdditionalInformation('psq_refund_id'));
+    }
+
     // ---- Helpers ----
 
     private function executor(): PaymentExecutor
