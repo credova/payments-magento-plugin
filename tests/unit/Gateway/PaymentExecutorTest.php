@@ -311,6 +311,25 @@ class PaymentExecutorTest extends TestCase
         $this->assertNull($payment->getAdditionalInformation('psq_refund_id'));
     }
 
+    // ---- Saved cards ----
+
+    public function testFindsTheCardOfACustomersSavedCard(): void
+    {
+        $token = new FakeToken();
+        $token->setGatewayToken('card_1');
+        $this->tokenManagement->method('getByPublicHash')->with('public_hash_1', 42)->willReturn($token);
+
+        $this->assertSame('card_1', $this->executor()->getCardIdFromPublicHash('public_hash_1', 42));
+    }
+
+    /** CaptureCommand turns an empty card id into "Card not found", a payment error and not a 500. */
+    public function testFindsNoCardForAHashThatIsNotTheCustomers(): void
+    {
+        $this->tokenManagement->method('getByPublicHash')->willReturn(null);
+
+        $this->assertSame('', $this->executor()->getCardIdFromPublicHash('someone_elses_hash', 42));
+    }
+
     // ---- Helpers ----
 
     private function executor(): PaymentExecutor

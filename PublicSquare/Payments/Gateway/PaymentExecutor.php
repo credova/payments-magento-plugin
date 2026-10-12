@@ -568,7 +568,8 @@ class PaymentExecutor
             $publicHash,
             $customerId
         );
-        return $paymentToken->getGatewayToken();
+        // Null for an unknown hash or another customer's. CaptureCommand turns '' into "Card not found".
+        return $paymentToken ? (string) $paymentToken->getGatewayToken() : '';
     }
 
     public function throwUserFriendlyException(\Exception $e)
