@@ -91,14 +91,24 @@ define([], function () {
         });
       }
 
+      // RequireJS keeps a failed or unfinished load and does not fetch it again. undef() drops it,
+      // so the next init fetches the script.
+      function forgetSdkModule() {
+        if (typeof loaderRequire.undef === 'function') {
+          loaderRequire.undef(SDK_URL);
+        }
+      }
+
       function onError() {
         settle(function () {
+          forgetSdkModule();
           reject(new Error('Unable to load PublicSquare SDK script.'));
         });
       }
 
       timeoutId = setTimeout(function () {
         settle(function () {
+          forgetSdkModule();
           reject(new Error('PublicSquare SDK load timed out after ' + timeoutMs + 'ms.'));
         });
       }, timeoutMs);
