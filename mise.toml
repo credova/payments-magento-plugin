@@ -113,6 +113,24 @@ description = "Smoke-test the dev stack: magento.test answers over HTTPS and the
 raw = true
 run = "bin/dev-verify"
 
+[tasks."dev:reload"]
+description = "Reload the plugin in the dev stack after a code change: clear generated code and caches, compile DI"
+dir = "{{config_root}}/magento-install"
+usage = 'flag "--upgrade" help="Also run setup:upgrade, for a module version, schema, or data patch change"'
+# The plugin is mounted, so PHP changes are live, but Magento keeps stale generated classes, DI config, and
+# compiled JS/templates. di:compile also rebuilds and checks every module's di.xml.
+run = '''
+. "{{config_root}}/bin/lib/clean-path"
+set -euo pipefail
+bin/clinotty rm -rf generated/code generated/metadata var/view_preprocessed
+bin/clinotty find pub/static -type d -name PublicSquare_Payments -prune -exec rm -rf {} +
+if [ "${usage_upgrade:-false}" = "true" ]; then
+  bin/clinotty bin/magento setup:upgrade --keep-generated
+fi
+bin/clinotty bin/magento setup:di:compile
+bin/clinotty bin/magento cache:flush
+'''
+
 [tasks."dev:reset"]
 description = "Delete the dev stack, its volumes, and magento-install/"
 raw = true
