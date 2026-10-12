@@ -12,6 +12,7 @@ use Magento\Quote\Model\QuoteRepository;
 use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Vault\Api\Data\PaymentTokenInterface;
 use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Vault\Api\PaymentTokenRepositoryInterface;
 use Magento\Vault\Model\CreditCardTokenFactory;
@@ -23,6 +24,7 @@ use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Api\Authenticated\PaymentCaptureFactory;
 use PublicSquare\Payments\Api\Authenticated\PaymentCreate;
 use PublicSquare\Payments\Api\Authenticated\PaymentCreateFactory;
+use PublicSquare\Payments\Api\Authenticated\PaymentRefund;
 use PublicSquare\Payments\Api\Authenticated\PaymentRefundFactory;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdateFactory;
@@ -30,7 +32,8 @@ use PublicSquare\Payments\Gateway\PaymentExecutor;
 use PublicSquare\Payments\Logger\Logger;
 
 /**
- * PaymentExecutor runs the money steps. These tests cover authorize, capture, cancel, and setting the order id. The PSQ request classes are mocked at their factories; PaymentCreateTest and
+ * PaymentExecutor runs every money step: authorize, capture, cancel, the cancel or refund when an order fails to
+ * submit, and the saved-card vault. The PSQ request classes are mocked at their factories; PaymentCreateTest and
  * PaymentFollowUpRequestsTest cover what those classes send.
  */
 class PaymentExecutorTest extends TestCase
@@ -160,6 +163,43 @@ class PaymentExecutorTest extends TestCase
         $this->assertSame(1, $payment->getIsTransactionClosed());
     }
 
+    public function testSavesTheCardToTheCustomersVault(): void
+    {
+        [$payment] = $this->checkoutPayment(info: ['saveCard' => true]);
+        $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+        $token = new FakeToken();
+        $this->tokenFactory->method('create')->willReturn($token);
+        $details = '{"type":"visa","maskedCC":"4242","expirationDate":"4\/2030"}';
+        $this->encryptor->method('getHash')
+            ->with('card_142publicsquare_payments' . json_encode($details))
+            ->willReturn('public_hash_1');
+        $this->tokenRepository->expects($this->once())->method('save')->with($token);
+
+        $this->executor()->executeAuthorize($this->subject($payment));
+
+        $this->assertSame([
+            'expiresAt' => '2030-04-30 23:59:59', 'gatewayToken' => 'card_1', 'tokenDetails' => $details,
+            'isActive' => true, 'isVisible' => true, 'paymentMethodCode' => 'publicsquare_payments',
+            'websiteId' => 3, 'customerId' => 42, 'publicHash' => 'public_hash_1',
+        ], $token->data);
+    }
+
+    public static function unsavedCards(): array
+    {
+        return ['the shopper did not ask' => [['saveCard' => false], []], 'a guest' => [['saveCard' => true],
+            ['customer_id' => null]]];
+    }
+
+    #[DataProvider('unsavedCards')]
+    public function testDoesNotSaveTheCardFor(array $info, array $order): void
+    {
+        [$payment] = $this->checkoutPayment(info: $info, order: $order);
+        $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+        $this->tokenRepository->expects($this->never())->method('save');
+
+        $this->executor()->executeAuthorize($this->subject($payment));
+    }
+
     // ---- Capture and cancel an authorization ----
 
     public function testCapturesAnAuthorizedPayment(): void
@@ -217,6 +257,42 @@ class PaymentExecutorTest extends TestCase
         $this->executor()->executeUpdate($this->orderEvent($this->authorizedPayment('succeeded')));
 
         $this->assertSame(['paymentId' => 'pmt_1', 'externalId' => '100000123'], $update->data);
+    }
+
+    // ---- Undo the charge when Magento fails to save the order ----
+
+    public function testCancelsAnAuthorizationWhenTheOrderFailsToSubmit(): void
+    {
+        $payment = $this->authorizedPayment('requires_capture');
+        $cancel = $this->expectRequest(PaymentCancelFactory::class, PaymentCancel::class, null);
+        $this->factories[PaymentRefundFactory::class]->expects($this->never())->method('create');
+
+        $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment));
+
+        $this->assertSame(['paymentId' => 'pmt_1'], $cancel->data);
+        $this->assertSame(1, $payment->getIsTransactionClosed());
+    }
+
+    public function testRefundsACapturedPaymentWhenTheOrderFailsToSubmit(): void
+    {
+        $payment = $this->authorizedPayment('succeeded');
+        $refund = $this->expectRequest(PaymentRefundFactory::class, PaymentRefund::class, ['id' => 'rfd_1']);
+
+        $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment));
+
+        // The PSQ response amount is already in cents, so it goes to the refund unchanged.
+        $this->assertSame(['paymentId' => 'pmt_1', 'amount' => 1999], $refund->data);
+        $this->assertSame('rfd_1', $payment->getAdditionalInformation('psq_refund_id'));
+        $this->assertSame(1, $payment->getIsTransactionClosed());
+    }
+
+    public function testDoesNothingWhenTheFailedOrderWasNeverCharged(): void
+    {
+        $payment = (new Interceptor())->setOrder($this->order([]));
+        $this->factories[PaymentCancelFactory::class]->expects($this->never())->method('create');
+        $this->factories[PaymentRefundFactory::class]->expects($this->never())->method('create');
+
+        $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment));
     }
 
     // ---- Helpers ----
@@ -319,6 +395,35 @@ class FakeRecord
         $key = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', substr($method, 3)));
         return $this->data[$key] ?? null;
     }
+}
+
+/** A vault card token that records what the gateway set on it. */
+class FakeToken implements PaymentTokenInterface
+{
+    public array $data = [];
+
+    public function __call($method, $args) {}
+    public function getId() { return null; }
+    public function setCustomerId($customerId) { $this->data['customerId'] = $customerId; }
+    public function getCustomerId() { return $this->data['customerId'] ?? null; }
+    public function setGatewayToken($token) { $this->data['gatewayToken'] = $token; }
+    public function getGatewayToken() { return $this->data['gatewayToken'] ?? null; }
+    public function setPaymentMethodCode($code) { $this->data['paymentMethodCode'] = $code; }
+    public function getPaymentMethodCode() { return $this->data['paymentMethodCode'] ?? null; }
+    public function setType($type) { $this->data['type'] = $type; }
+    public function getType() { return $this->data['type'] ?? null; }
+    public function setIsActive($isActive) { $this->data['isActive'] = $isActive; }
+    public function getIsActive() { return $this->data['isActive'] ?? null; }
+    public function setIsVisible($isVisible) { $this->data['isVisible'] = $isVisible; }
+    public function getIsVisible() { return $this->data['isVisible'] ?? null; }
+    public function setWebsiteId($websiteId) { $this->data['websiteId'] = $websiteId; }
+    public function getWebsiteId() { return $this->data['websiteId'] ?? null; }
+    public function setTokenDetails($details) { $this->data['tokenDetails'] = $details; }
+    public function getTokenDetails() { return $this->data['tokenDetails'] ?? null; }
+    public function setExpiresAt($timestamp) { $this->data['expiresAt'] = $timestamp; }
+    public function getExpiresAt() { return $this->data['expiresAt'] ?? null; }
+    public function setPublicHash($hash) { $this->data['publicHash'] = $hash; }
+    public function getPublicHash() { return $this->data['publicHash'] ?? null; }
 }
 
 /** Keeps its log lines through withName(), which the executor calls in its constructor. */
