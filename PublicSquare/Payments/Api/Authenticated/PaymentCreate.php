@@ -40,12 +40,11 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         string                               $phone,
         string                               $email,
         \Magento\Quote\Model\Quote\Address   $billingAddress,
-                                             $shippingAddress = null,
-                                             $idempotencyKey = null,
-                                             $externalId = "",
-                                             $deviceInformation = null,
-    )
-    {
+        $shippingAddress = null,
+        $idempotencyKey = null,
+        $externalId = "",
+        $deviceInformation = null,
+    ) {
         parent::__construct($clientFactory, $configHelper, $logger);
         if ($idempotencyKey) {
             // Include externalId to ensure uniqueness across multishipping orders created in a single submit
@@ -123,9 +122,7 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         $phoneNumber = str_replace(" ", "-", $rawPhoneNumber);
         $phoneNumber = preg_replace("/\D+/", "", $phoneNumber);
 
-        if (
-            preg_match('/(\d{3})(\d{3})(\d{4})$/', $phoneNumber, $matches)
-        ) {
+        if (preg_match('/(\d{3})(\d{3})(\d{4})$/', $phoneNumber, $matches)) {
             $phoneNumber =
                 $matches[1] . "-" . $matches[2] . "-" . $matches[3];
         } else {
@@ -168,25 +165,21 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         try {
             $this->checkResponseStatus($data);
         } catch (ApiRejectedResponseException $e) {
-            $this->logger->error("PSQ Payment rejected", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $this->logRefusedPayment("PSQ Payment rejected", $data);
             throw new ApiRejectedResponseException(
                 __(
                     "The payment could not be completed. Please verify your details and try again.",
                 ),
             );
         } catch (ApiDeclinedResponseException $e) {
-            $this->logger->error("PSQ Payment declined", [
-                "response" => $this->getSanitizedResponseData(),
-            ]);
+            $reason = $this->declinedReason($data);
+            $this->logRefusedPayment("PSQ Payment declined: " . ($reason ?? "not provided"), $data);
             throw new ApiDeclinedResponseException(
-                __(
-                    "The payment could not be processed. Reason: " .
-                    $data["declined_reason"] ??
-                    "declined",
-                ),
+                __("The payment could not be processed. Reason: %1", $reason ?? "declined")
             );
+        } catch (ApiFailedResponseException $e) {
+            $this->logRefusedPayment("PSQ Payment failed", $data);
+            throw $e;
         }
 
         if (in_array($status, [$this::SUCCEEDED_STATUS, $this::REQUIRES_CAPTURE_STATUS])) {

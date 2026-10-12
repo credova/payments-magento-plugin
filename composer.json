@@ -24,6 +24,7 @@
   "autoload-dev": {
     "psr-4": {
       "PublicSquare\\Payments\\Test\\Unit\\": "tests/unit/",
+      "Laminas\\": "tests/unit/stubs/Laminas/",
       "Magento\\": "tests/unit/stubs/Magento/",
       "Monolog\\": "tests/unit/stubs/Monolog/",
       "Symfony\\": "tests/unit/stubs/Symfony/",
