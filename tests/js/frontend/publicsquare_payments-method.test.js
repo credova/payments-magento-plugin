@@ -184,7 +184,9 @@ describe('publicsquare_payments-method', () => {
       expect(magento.placeOrder).toHaveBeenCalledTimes(1);
     });
 
-    it('lets the shopper retry with a new idempotency key after the card fails to tokenize', async () => {
+    // A failed tokenize sent no order request. Keeping the key matters when an earlier attempt timed out and may have
+    // charged: the next order request must reuse that attempt's key.
+    it('lets the shopper retry with the same idempotency key after the card fails to tokenize', async () => {
       const renderer = createRenderer();
       const firstKey = renderer.idempotencyKey;
       magento.publicsquare.createCard.mockRejectedValueOnce(new Error('card declined'));
@@ -193,7 +195,7 @@ describe('publicsquare_payments-method', () => {
 
       expect(magento.fullScreenLoader.stopLoader).toHaveBeenCalled();
       expect(errorMessages()).toEqual([renderer.errorMessage]);
-      expect(renderer.idempotencyKey).not.toBe(firstKey);
+      expect(renderer.idempotencyKey).toBe(firstKey);
       expect(magento.placeOrder).not.toHaveBeenCalled();
 
       await renderer.placeOrder();
@@ -203,7 +205,11 @@ describe('publicsquare_payments-method', () => {
     it.each([
       ['a plain', 'Your card was declined.', 'Your card was declined.'],
       ['a JSON-encoded', JSON.stringify({ message: 'Insufficient funds.' }), 'Insufficient funds.'],
-      ['a JSON-encoded non-message', JSON.stringify({ code: 42 }), JSON.stringify({ code: 42 })],
+      [
+        'a JSON-encoded non-message',
+        JSON.stringify({ code: 42 }),
+        'Something went wrong. Please try again or contact support for assistance.',
+      ],
       ['no', undefined, 'Something went wrong. Please try again or contact support for assistance.'],
       ['a number', 500, 'Something went wrong. Please try again or contact support for assistance.'],
       ['a numbered-parameter', 'The "%1" cart has no items.', 'The "quote_1" cart has no items.', ['quote_1']],
@@ -225,6 +231,18 @@ describe('publicsquare_payments-method', () => {
       expect(magento.fullScreenLoader.stopLoader).toHaveBeenCalled();
       expect(renderer.submitting).toBe(false);
       expect($.mage.redirect).not.toHaveBeenCalled();
+    });
+
+    // Magento redirects a 401 to the login page and shows nothing itself; the renderer still shows one error.
+    it('shows one error and makes a new key when the session has expired', async () => {
+      const renderer = createRenderer();
+      const firstKey = renderer.idempotencyKey;
+      magento.placeOrder.mockImplementation(failedPlaceOrder({ message: 'The consumer is not authorized.' }, 401));
+
+      await renderer.placeOrder();
+
+      expect(errorMessages()).toEqual(['The consumer is not authorized.']);
+      expect(renderer.idempotencyKey).not.toBe(firstKey);
     });
 
     // The payment may have gone through, so the retry must reuse the key for PublicSquare to dedupe it.

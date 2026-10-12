@@ -41,6 +41,9 @@ define([], function () {
           text = decoded.message;
         } else if (typeof decoded === 'string') {
           text = decoded;
+        } else if (decoded && typeof decoded === 'object') {
+          // JSON with no message to show, such as {"code":42}.
+          return fallback;
         }
       } catch {
         // A plain-text message.
@@ -51,19 +54,17 @@ define([], function () {
     /**
      * Tells whether a failure is final, so that a retry needs a new idempotency key.
      *
-     * A timeout, a network error, or a 5xx can arrive after the payment went through. The retry then
-     * keeps the key, so PublicSquare returns the first result and does not charge the card again.
+     * Only a 4xx from the order request is final. When the order fails to save after a charge, Magento's
+     * quote-submit-failure observer cancels or refunds the charge before the 4xx returns, so a new key is safe.
+     * A timeout, a network error, or a 5xx can arrive after the payment went through, so the retry keeps the key
+     * and PublicSquare returns the first result. A failed tokenize sent no order request, so it keeps the key too.
      *
      * @param {*} error The rejection value, such as a jqXHR or an Error.
      * @returns {Boolean}
      */
     isFinal: function (error) {
       const status = error && error.status;
-      // An error that is not an HTTP response, such as a failed tokenize, sent no order request.
-      if (typeof status !== 'number') {
-        return true;
-      }
-      return status >= 400 && status < 500;
+      return typeof status === 'number' && status >= 400 && status < 500;
     },
   };
 });
