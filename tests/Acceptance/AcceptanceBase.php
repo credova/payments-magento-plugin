@@ -252,8 +252,26 @@ class AcceptanceBase
     }
 
 
+    /**
+     * Every test order reserves stock and none ship, so the suite runs a product out of stock over time.
+     */
+    protected function _restockProduct(AcceptanceTester $I, string $sku, int $quantity = 100000): void
+    {
+        $I->executeOnDatabase(
+            "UPDATE inventory_source_item SET quantity = $quantity, status = 1 WHERE sku = '$sku'"
+        );
+        foreach (['cataloginventory_stock_item', 'cataloginventory_stock_status'] as $table) {
+            $stockColumn = $table === 'cataloginventory_stock_item' ? 'is_in_stock' : 'stock_status';
+            $I->executeOnDatabase(
+                "UPDATE $table s JOIN catalog_product_entity p ON p.entity_id = s.product_id "
+                . "SET s.qty = $quantity, s.$stockColumn = 1 WHERE p.sku = '$sku'"
+            );
+        }
+    }
+
     protected function _addProductToCart(AcceptanceTester $I): void
     {
+        $this->_restockProduct($I, '24-MB01');
         $I->amOnPage('/joust-duffle-bag.html');
         $I->waitForElementClickable('button[title="Add to Cart"]');
         $I->click('Add to Cart');
