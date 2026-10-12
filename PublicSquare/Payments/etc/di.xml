@@ -109,13 +109,6 @@
             <argument name="configInterface" xsi:type="object">PublicSquarePaymentsVaultPaymentConfig</argument>
         </arguments>
     </virtualType>
-    <virtualType name="PublicSquarePaymentsVaultAuthorizeRequest" type="Magento\Payment\Gateway\Request\BuilderComposite">
-        <arguments>
-            <argument name="builders" xsi:type="array">
-                <item name="vault" xsi:type="string">PublicSquare\Payments\Model\VaultDataBuilder</item>
-            </argument>
-        </arguments>
-    </virtualType>
     <virtualType name="PublicSquarePaymentsCommandManager" type="Magento\Payment\Gateway\Command\CommandManager">
         <arguments>
             <argument name="commandPool" xsi:type="object">PublicSquarePaymentsCommandPool</argument>
@@ -128,13 +121,6 @@
             </argument>
         </arguments>
     </type>
-    <virtualType name="PublicSquareAuthorizationHandler" type="Magento\Payment\Gateway\Response\HandlerChain">
-        <arguments>
-            <argument name="handlers" xsi:type="array">
-                <item name="vault_details" xsi:type="string">PublicSquare\Payments\Model\VaultDetailsHandler</item>
-            </argument>
-        </arguments>
-    </virtualType>
     <type name="Magento\Vault\Model\Ui\TokensConfigProvider">
         <arguments>
             <argument name="tokenUiComponentProviders" xsi:type="array">
