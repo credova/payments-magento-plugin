@@ -10,7 +10,6 @@ use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Payment\Gateway\Command\CommandException;
 use Magento\Payment\Gateway\Data\PaymentDataObjectInterface;
 use Magento\Quote\Model\QuoteRepository;
-use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
@@ -52,7 +51,6 @@ class PaymentExecutorTest extends TestCase
     private array $factories = [];
     private RecordingLogger $logger;
     private QuoteRepository $quoteRepository;
-    private TransactionRepositoryInterface $transactions;
     private CreditCardTokenFactory $tokenFactory;
     private PaymentTokenRepositoryInterface $tokenRepository;
     private PaymentTokenManagementInterface $tokenManagement;
@@ -68,7 +66,6 @@ class PaymentExecutorTest extends TestCase
         }
         $this->logger = new RecordingLogger();
         $this->quoteRepository = $this->createMock(QuoteRepository::class);
-        $this->transactions = $this->createMock(TransactionRepositoryInterface::class);
         $this->tokenFactory = $this->createMock(CreditCardTokenFactory::class);
         $this->tokenRepository = $this->createMock(PaymentTokenRepositoryInterface::class);
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
@@ -276,6 +273,39 @@ class PaymentExecutorTest extends TestCase
         }
     }
 
+    /** A void on a captured order (Magento's voidPayment doesn't check canVoid()) is a payment error, not a crash. */
+    public function testRefusesToCancelAPaymentWithoutAnAuthorization(): void
+    {
+        $payment = $this->authorizedPayment('succeeded')->setAuthorizationTransaction(false);
+        $this->factories[PaymentCancelFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('it is not possible to cancel this order');
+        $this->executor()->executeCancel($this->subject($payment));
+    }
+
+    public function testRefusesToCaptureAPaymentWithoutAnAuthorization(): void
+    {
+        $payment = $this->authorizedPayment('succeeded')->setAuthorizationTransaction(false);
+        $this->factories[PaymentCaptureFactory::class]->expects($this->never())->method('create');
+        $this->factories[PaymentCancelFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('it is not possible to invoice this order');
+        $this->executor()->executeCapture($this->subject($payment));
+    }
+
+    /** Not looked up at all: Magento would search by the ids of a payment that isn't saved yet. */
+    public function testFindsNoAuthorizationForAPaymentNotSentToPublicSquareYet(): void
+    {
+        $payment = (new Interceptor())->setOrder($this->order([]))
+            ->setAuthorizationTransaction(new FakeRecord(['txn_id' => 'pmt_1']));
+        $executor = $this->executor();
+        $executor->setCommandSubject($this->subject($payment));
+
+        $this->assertNull($executor->getTransaction());
+    }
+
     public function testCancelsAnAuthorization(): void
     {
         $payment = $this->authorizedPayment('requires_capture');
@@ -382,7 +412,7 @@ class PaymentExecutorTest extends TestCase
 
         return new PaymentExecutor(
             $this->quoteRepository, $this->factories[PaymentCreateFactory::class], $this->tokenFactory, $storeManager,
-            $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger, $this->transactions,
+            $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
             $remoteAddress, $this->cvvRequests,
@@ -432,9 +462,9 @@ class PaymentExecutorTest extends TestCase
     /** A payment that PSQ already authorized ($status) under the Magento transaction $txnId. */
     private function authorizedPayment(string $status, string $txnId = 'pmt_1'): Interceptor
     {
-        $payment = (new Interceptor())->setOrder($this->order([]))->setLastTransId($txnId);
+        $payment = (new Interceptor())->setOrder($this->order([]))->setLastTransId($txnId)
+            ->setAuthorizationTransaction(new FakeRecord(['txn_id' => $txnId]));
         $payment->setAdditionalInformation('raw_details_info', ['status' => $status, 'amount' => 1999] + self::RESPONSE);
-        $this->transactions->method('get')->with($txnId)->willReturn(new FakeRecord(['txn_id' => $txnId]));
         return $payment;
     }
 
