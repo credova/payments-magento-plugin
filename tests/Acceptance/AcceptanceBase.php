@@ -373,6 +373,35 @@ class AcceptanceBase
         $I->waitForElementVisible('#checkout-step-payment', 30);
     }
 
+    /**
+     * Ships a logged-in customer's cart to an address that is not in their address book, then goes to payment.
+     * The address is not saved, so a later checkout must enter it again to reuse it.
+     */
+    protected function _goToCheckoutWithNewShippingAddress(AcceptanceTester $I, array $address)
+    {
+        $I->amOnPage('/checkout');
+        $I->waitForElementNotVisible(".loading-mask", 60);
+        $I->waitForElementClickable('.new-address-popup>button.action-show-popup', 30);
+        $I->click('.new-address-popup>button.action-show-popup');
+        $modal = '#opc-new-shipping-address';
+        $I->waitForElementVisible("$modal input[name=\"street[0]\"]");
+        $I->fillField("$modal input[name=\"street[0]\"]", $address['street']);
+        $I->fillField("$modal input[name=\"city\"]", $address['city']);
+        $I->selectOption("$modal select[name=\"country_id\"]", 'US');
+        $I->selectOption("$modal select[name=\"region_id\"]", $address['region']);
+        $I->fillField("$modal input[name=\"postcode\"]", $address['postcode']);
+        $I->fillField("$modal input[name=\"telephone\"]", '1234567890');
+        $I->tryToUncheckOption("$modal input[name=\"save_in_address_book\"]");
+        $I->click('.modal-footer .action-save-address');
+        $this->_waitForLoading($I);
+        $firstRadio = '.table-checkout-shipping-method tbody tr:nth-child(1) input[type="radio"]';
+        $I->waitForElementClickable($firstRadio);
+        $I->click($firstRadio);
+        $I->click('Next');
+        $I->waitForElementVisible('#checkout-step-payment', 30);
+        $this->_waitForLoading($I);
+    }
+
     protected function _makeSurePaymentMethodIsVisible(AcceptanceTester $I, $containerSelector = self::DEFAULT_CONTAINER_SELECTOR)
     {
         $I->waitForElementNotVisible(".loading-mask", 60);
