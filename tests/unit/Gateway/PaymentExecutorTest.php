@@ -360,6 +360,50 @@ class PaymentExecutorTest extends TestCase
         $this->assertSame('', $this->executor()->getCardIdFromPublicHash('someone_elses_hash', 42));
     }
 
+    public static function cardsToCharge(): array
+    {
+        return [
+            // vault_authorize or vault_sale: the order customer's saved card, whatever card the client sent.
+            'a saved card' => [['public_hash' => 'hash_1', 'cardId' => 'card_client', 'payment_method_nonce' => 'card_x'],
+                'card_9'],
+            'an admin order' => [['cardId' => null, 'payment_method_nonce' => 'card_admin'], 'card_admin'],
+            'a new-card checkout' => [[], 'card_1'],
+        ];
+    }
+
+    #[DataProvider('cardsToCharge')]
+    public function testCreatesThePaymentWithTheCardOf(array $info, string $cardId): void
+    {
+        $token = new FakeToken();
+        $token->setGatewayToken('card_9');
+        $token->setIsActive(true);
+        $this->tokenManagement->method('getByPublicHash')->with('hash_1', 42)->willReturn($token);
+        [$payment] = $this->checkoutPayment(info: $info);
+        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+
+        $this->executor()->executeAuthorize($this->subject($payment));
+
+        $this->assertSame($cardId, $request->data['cardId']);
+        $this->assertSame($cardId, $payment->getAdditionalInformation('cardId'));
+    }
+
+    public static function unusableSavedCards(): array
+    {
+        return ['a guest order' => [null, 'Customer not found'], 'an unknown card' => [42, 'Card not found']];
+    }
+
+    #[DataProvider('unusableSavedCards')]
+    public function testRefusesASavedCardFor(?int $customerId, string $message): void
+    {
+        $this->tokenManagement->method('getByPublicHash')->willReturn(null);
+        [$payment] = $this->checkoutPayment(info: ['public_hash' => 'hash_1'], order: ['customer_id' => $customerId]);
+        $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage($message);
+        $this->executor()->executeAuthorize($this->subject($payment));
+    }
+
     // ---- Helpers ----
 
     private function executor(): PaymentExecutor
