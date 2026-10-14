@@ -317,12 +317,25 @@ class PaymentExecutorTest extends TestCase
     {
         $token = new FakeToken();
         $token->setGatewayToken('card_1');
+        $token->setIsActive(true);
         $this->tokenManagement->method('getByPublicHash')->with('public_hash_1', 42)->willReturn($token);
 
         $this->assertSame('card_1', $this->executor()->getCardIdFromPublicHash('public_hash_1', 42));
     }
 
-    /** CaptureCommand turns an empty card id into "Card not found", a payment error and not a 500. */
+    /** A card deleted in My Account, still found by its old public hash. */
+    public function testFindsNoCardForASavedCardTheCustomerDeleted(): void
+    {
+        $token = new FakeToken();
+        $token->setGatewayToken('card_1');
+        $token->setIsActive(false);
+        $this->tokenManagement->method('getByPublicHash')->with('public_hash_1', 42)->willReturn($token);
+
+        $this->assertSame('', $this->executor()->getCardIdFromPublicHash('public_hash_1', 42));
+        $this->assertSame('Saved card refused: the customer deleted it', $this->logger->lastMessage('info'));
+    }
+
+    /** The caller turns an empty card id into "Card not found", a payment error and not a 500. */
     public function testFindsNoCardForAHashThatIsNotTheCustomers(): void
     {
         $this->tokenManagement->method('getByPublicHash')->willReturn(null);

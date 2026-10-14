@@ -568,8 +568,16 @@ class PaymentExecutor
             $publicHash,
             $customerId
         );
-        // Null for an unknown hash or another customer's. CaptureCommand turns '' into "Card not found".
-        return $paymentToken ? (string) $paymentToken->getGatewayToken() : '';
+        // Null for an unknown hash or another customer's. The caller turns '' into "Card not found".
+        if (!$paymentToken) {
+            return '';
+        }
+        // Deleting a card in My Account only deactivates its token, so an old public hash still finds it.
+        if (!$paymentToken->getIsActive()) {
+            $this->logger->info('Saved card refused: the customer deleted it', ['customer_id' => $customerId]);
+            return '';
+        }
+        return (string) $paymentToken->getGatewayToken();
     }
 
     public function throwUserFriendlyException(\Exception $e)
