@@ -267,6 +267,23 @@ class PaymentCreateTest extends TestCase
         $this->assertSame(1, $this->client->sendCount);
     }
 
+    public function testSendsTheRecurringDetailsOfARenewal(): void
+    {
+        $this->paymentCreate(['initialPaymentId' => 'pmt_first'])->getResponseData();
+
+        $this->assertSame(
+            ['type' => 'subsequent', 'initial_payment_id' => 'pmt_first'],
+            $this->client->json()['recurring'],
+        );
+    }
+
+    public function testSendsNoRecurringDetailsForAShopperPayment(): void
+    {
+        $this->paymentCreate()->getResponseData();
+
+        $this->assertArrayNotHasKey('recurring', $this->client->json());
+    }
+
     private function paymentCreate(array $overrides = []): PaymentCreate
     {
         $clientFactory = $this->createMock(ClientFactory::class);
