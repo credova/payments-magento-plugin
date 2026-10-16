@@ -1,0 +1,37 @@
+// /**
+//  * @category  PublicSquare
+//  * @package   PublicSquare_Payments
+//  * @copyright 2024 PublicSquare
+//  * @license   http://opensource.org/licenses/osl-3.0.php (OSL 3.0)
+//  * @link      https://publicsquare.com/
+//  */
+
+//
+//  Saved-card CVV field
+//  _____________________________________________
+
+//  The CVV input is inside a Basis Theory iframe, which the theme's styles can't reach. Its container is drawn
+//  as the theme's text input instead, from the theme's own form variables, so it matches the other fields.
+
+& when (@media-common = true) {
+  .psq-cvv-recollection-field {
+    .lib-form-element-input(@_type: input-text);
+    align-items: center;
+    display: flex;
+    max-width: 10em;
+
+    &._focus {
+      .lib-css(background, @input-text__focus__background);
+      .lib-css(border, @input-text__focus__border);
+      .lib-css(box-shadow, @focus__box-shadow);
+    }
+
+    &._error {
+      .lib-css(border-color, @form-element-validation__border-error);
+    }
+
+    iframe {
+      flex: 1 1 auto;
+    }
+  }
+}

@@ -167,4 +167,110 @@ describe('publicsquare_payments', () => {
       await expect(payments.createCard('Jane Doe', payments.cardElement)).resolves.toMatchObject({ id: 'card_1' });
     });
   });
+
+  describe('ensureInitialized', () => {
+    it('initializes the SDK once without mounting a card element', async () => {
+      const { loader, sdk } = fakeSdkLoader();
+      const payments = loadPayments(loader);
+
+      await expect(payments.ensureInitialized('pk_test_key')).resolves.toBe(sdk);
+      await payments.ensureInitialized('pk_test_key');
+
+      expect(loader.init).toHaveBeenCalledTimes(1);
+      expect(sdk.createCardElement).not.toHaveBeenCalled();
+    });
+
+    it('shares one SDK load with the card form when both start together', async () => {
+      const { loader, sdk, elements } = fakeSdkLoader();
+      const { promise: sdkLoaded, resolve: finishLoad } = Promise.withResolvers();
+      loader.init.mockReturnValueOnce(sdkLoaded);
+      const payments = loadPayments(loader);
+
+      const cvvField = payments.ensureInitialized('pk_test_key');
+      const cardForm = payments.initElements(params);
+      finishLoad(sdk);
+      await Promise.all([cvvField, cardForm]);
+
+      expect(loader.init).toHaveBeenCalledTimes(1);
+      expect(elements[0].mount).toHaveBeenCalledWith('#publicsquare-elements-form');
+    });
+
+    it('can try again after the SDK fails to initialize', async () => {
+      const { loader, sdk } = fakeSdkLoader();
+      loader.init.mockRejectedValueOnce(new Error('SDK load timed out'));
+      const payments = loadPayments(loader);
+
+      await expect(payments.ensureInitialized('pk_test_key')).rejects.toThrow('SDK load timed out');
+      await expect(payments.ensureInitialized('pk_test_key')).resolves.toBe(sdk);
+    });
+  });
+
+  describe('saved-card CVV', () => {
+    async function ready() {
+      const fake = fakeSdkLoader();
+      const cvcElement = { mount: vi.fn() };
+      fake.sdk.createElement = vi.fn(() => cvcElement);
+      fake.sdk.cards.updateCvc = vi.fn(async (id) => ({ id, modified_at: '2026-10-12T15:00:00Z' }));
+      const payments = loadPayments(fake.loader);
+      await payments.ensureInitialized('pk_test_key');
+      return { ...fake, payments, cvcElement };
+    }
+
+    it.each([
+      ['visa', 'visa'],
+      ['amex', 'american-express'],
+      ['american_express', 'american-express'],
+      ['Diners Club', 'diners-club'],
+    ])('mounts a CVV element sized for a %s card', async (brand, elementBrand) => {
+      const { payments, sdk, cvcElement } = await ready();
+
+      expect(payments.createCvcElement('#psq-cvc-1', brand)).toBe(cvcElement);
+
+      expect(sdk.createElement).toHaveBeenCalledWith('cardVerificationCode', { cardBrand: elementBrand });
+      expect(cvcElement.mount).toHaveBeenCalledWith('#psq-cvc-1');
+    });
+
+    it('leaves the CVV length open for an unknown brand', async () => {
+      const { payments, sdk } = await ready();
+
+      payments.createCvcElement('#psq-cvc-1', 'something-new');
+
+      expect(sdk.createElement).toHaveBeenCalledWith('cardVerificationCode', {});
+    });
+
+    it("gives the CVV input the theme's text style from its container", async () => {
+      const { payments, sdk } = await ready();
+      const container = document.createElement('div');
+      container.id = 'psq-cvc-1';
+      container.style.cssText = 'color: rgb(51, 51, 51); font-family: Arial, sans-serif; font-size: 14px;';
+      document.body.appendChild(container);
+
+      try {
+        payments.createCvcElement('#psq-cvc-1', 'visa');
+      } finally {
+        container.remove();
+      }
+
+      expect(sdk.createElement).toHaveBeenCalledWith('cardVerificationCode', {
+        cardBrand: 'visa',
+        style: { base: { color: 'rgb(51, 51, 51)', fontFamily: 'Arial, sans-serif', fontSize: '14px' } },
+      });
+    });
+
+    it('attaches the CVV to the saved card', async () => {
+      const { payments, sdk, cvcElement } = await ready();
+
+      await expect(payments.updateCvc('card_123', cvcElement)).resolves.toMatchObject({ id: 'card_123' });
+      expect(sdk.cards.updateCvc).toHaveBeenCalledWith('card_123', cvcElement);
+    });
+
+    it('returns an error instead of throwing when the CVV update fails', async () => {
+      const { payments, sdk, cvcElement } = await ready();
+      sdk.cards.updateCvc.mockRejectedValue(new Error('session expired'));
+
+      await expect(payments.updateCvc('card_123', cvcElement)).resolves.toEqual({
+        error: { error: 'session expired' },
+      });
+    });
+  });
 });
