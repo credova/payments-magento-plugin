@@ -8,7 +8,7 @@ abstract class AbstractHelper
 
     public function __construct(Context $context)
     {
+        // Same as Magento: helpers read config through the context's scope config.
+        $this->scopeConfig = $context->getScopeConfig();
     }
 }
-
-
