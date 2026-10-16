@@ -84,3 +84,20 @@ export function observable(initial) {
     return value;
   };
 }
+
+/**
+ * An observable that also supports subscribe, like quote.paymentMethod and quote.totals.
+ */
+export function subscribable(initial) {
+  const read = observable(initial);
+  const subscribers = [];
+  const obs = function (...args) {
+    if (args.length) {
+      read(args[0]);
+      subscribers.forEach((callback) => callback(args[0]));
+    }
+    return read();
+  };
+  obs.subscribe = (callback) => subscribers.push(callback);
+  return obs;
+}

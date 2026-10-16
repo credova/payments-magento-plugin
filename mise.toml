@@ -199,7 +199,8 @@ bin/docker-compose --profile test up -d --wait selenium
 description = "Run the Codeception acceptance suite against the dev stack (starts Selenium)"
 depends = ["composer:install", "test:selenium"]
 # admin-order is flaky on the dev stack; run it with: vendor/bin/codecept run tests/Acceptance/ -g admin-order
-run = "vendor/bin/codecept run tests/Acceptance/ --skip-group admin-order"
+# psq-rule needs PublicSquare's card security code rule on the account (or the dev simulator); run it with -g psq-rule
+run = "vendor/bin/codecept run tests/Acceptance/ --skip-group admin-order --skip-group psq-rule"
 
 # Pass-through commands into the running dev stack. Extra args go to the command.
 # clean-path drops a stale relative ./bin from PATH; see bin/lib/clean-path.
