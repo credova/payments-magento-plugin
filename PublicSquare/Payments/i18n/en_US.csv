@@ -179,3 +179,5 @@ Currency,Currency
 "The security code didn't match. Please check it and try again.","The security code didn't match. Please check it and try again."
 "The saved card could not be found.","The saved card could not be found."
 "Require CVV for New Shipping Addresses","Require CVV for New Shipping Addresses"
+"Order %1 was not paid through PublicSquare, so it can't start a recurring payment.","Order %1 was not paid through PublicSquare, so it can't start a recurring payment."
+"Save the quote before marking it as a subscription renewal.","Save the quote before marking it as a subscription renewal."

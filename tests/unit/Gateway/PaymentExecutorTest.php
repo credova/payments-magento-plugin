@@ -33,6 +33,7 @@ use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 /**
  * PaymentExecutor runs every money step: authorize, capture, cancel, the cancel or refund when an order fails to
@@ -58,6 +59,7 @@ class PaymentExecutorTest extends TestCase
     private PaymentTokenManagementInterface $tokenManagement;
     private EncryptorInterface $encryptor;
     private CvvRequestedByPublicSquare $cvvRequests;
+    private SubscriptionRenewal $subscriptionRenewal;
 
     protected function setUp(): void
     {
@@ -74,6 +76,7 @@ class PaymentExecutorTest extends TestCase
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
+        $this->subscriptionRenewal = $this->createMock(SubscriptionRenewal::class);
     }
 
     // ---- Create the payment (authorize, or authorize and capture) ----
@@ -102,7 +105,20 @@ class PaymentExecutorTest extends TestCase
             'billingAddress' => $billing,
             'externalId' => '100000123',
             'deviceInformation' => ['ip_address' => '203.0.113.7'],
+            'initialPaymentId' => null,
         ], $request->data);
+    }
+
+    public function testSendsARenewalAsARecurringPaymentWithNoShopperDevice(): void
+    {
+        [$payment] = $this->checkoutPayment();
+        $this->subscriptionRenewal->method('getInitialPaymentId')->with(77, 'card_1')->willReturn('pmt_first');
+        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+
+        $this->executor()->executeAuthorizeCapture($this->subject($payment));
+
+        $this->assertSame('pmt_first', $request->data['initialPaymentId']);
+        $this->assertNull($request->data['deviceInformation']);
     }
 
     public function testUsesTheBillingEmailAndNoShippingForAGuestVirtualCart(): void
@@ -385,7 +401,7 @@ class PaymentExecutorTest extends TestCase
             $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger, $this->transactions,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
-            $remoteAddress, $this->cvvRequests,
+            $remoteAddress, $this->cvvRequests, $this->subscriptionRenewal,
         );
     }
 
