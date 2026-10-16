@@ -11,6 +11,7 @@ use Magento\Vault\Api\PaymentTokenManagementInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequirement;
 use PublicSquare\Payments\Model\CvvRecollection\RequirementResolver;
 use PublicSquare\Payments\Model\CvvRecollection\ShippingAddress;
@@ -20,6 +21,7 @@ class CvvRequirementTest extends TestCase
     private PaymentTokenManagementInterface&MockObject $tokenManagement;
     private CartRepositoryInterface&MockObject $cartRepository;
     private RequirementResolver&MockObject $resolver;
+    private CvvRequestedByPublicSquare&MockObject $cvvRequests;
     private CvvRequirement $service;
 
     protected function setUp(): void
@@ -27,6 +29,7 @@ class CvvRequirementTest extends TestCase
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->cartRepository = $this->createMock(CartRepositoryInterface::class);
         $this->resolver = $this->createMock(RequirementResolver::class);
+        $this->cvvRequests = $this->createMock(CvvRequestedByPublicSquare::class);
         $logger = $this->createMock(Logger::class);
         $logger->method('withName')->willReturn($logger);
 
@@ -34,6 +37,7 @@ class CvvRequirementTest extends TestCase
             $this->tokenManagement,
             $this->cartRepository,
             $this->resolver,
+            $this->cvvRequests,
             $logger
         );
     }
@@ -88,6 +92,19 @@ class CvvRequirementTest extends TestCase
         $this->assertTrue($result->getRequired());
         $this->assertSame('card_saved123', $result->getCardId());
         $this->assertSame('visa', $result->getCardBrand());
+    }
+
+    /** Our check can disagree with PublicSquare's rule; once PublicSquare asked, checkout asks too. */
+    public function testRequiredOncePublicSquareAskedForThisCardInThisCart(): void
+    {
+        $this->givenCartWithShippingAddress('123 Main St');
+        $this->cvvRequests->method('wasRequested')->with(42, 'card_saved123')->willReturn(true);
+        $this->resolver->method('isRequired')->willReturn(false);
+
+        $result = $this->service->check(7, 'hash');
+
+        $this->assertTrue($result->getRequired());
+        $this->assertSame('card_saved123', $result->getCardId());
     }
 
     public function testComparesTheCartsShippingAddressForTheCartsStore(): void
