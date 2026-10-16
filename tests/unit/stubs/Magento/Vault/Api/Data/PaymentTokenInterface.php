@@ -6,6 +6,8 @@ namespace Magento\Vault\Api\Data;
 interface PaymentTokenInterface
 {
     function getId();
+    function getEntityId();
+    function setEntityId($entityId);
     function setCustomerId($customerId);
     function getCustomerId();
     function setGatewayToken($token);
