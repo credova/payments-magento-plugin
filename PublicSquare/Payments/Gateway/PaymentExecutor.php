@@ -23,6 +23,7 @@ use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Helper\Config;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 class PaymentExecutor
 {
@@ -101,6 +102,11 @@ class PaymentExecutor
      */
     private $remoteAddress;
 
+    /**
+     * @var SubscriptionRenewal
+     */
+    private $subscriptionRenewal;
+
     public function __construct(
         QuoteRepository $quoteRepository,
         PaymentCreateFactory $paymentCreateFactory,
@@ -115,7 +121,8 @@ class PaymentExecutor
         PaymentCancelFactory $paymentCancelFactory,
         PaymentUpdateFactory $paymentUpdateFactory,
         PaymentRefundFactory $paymentRefundFactory,
-        RemoteAddress $remoteAddress
+        RemoteAddress $remoteAddress,
+        SubscriptionRenewal $subscriptionRenewal
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->paymentCreateFactory = $paymentCreateFactory;
@@ -131,6 +138,7 @@ class PaymentExecutor
         $this->paymentUpdateFactory = $paymentUpdateFactory;
         $this->paymentRefundFactory = $paymentRefundFactory;
         $this->remoteAddress = $remoteAddress;
+        $this->subscriptionRenewal = $subscriptionRenewal;
     }
 
     public function setCommandSubject(array $commandSubject)
@@ -415,6 +423,7 @@ class PaymentExecutor
             }
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
+                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId((int) $quote->getId(), $cardId);
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),
@@ -425,7 +434,9 @@ class PaymentExecutor
                     "shippingAddress" => $shippingAddress,
                     "billingAddress" => $billingAddress,
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
-                    "deviceInformation" => $this->getDeviceInformation(),
+                    // A renewal has no shopper, so the device is the merchant's, not the cardholder's.
+                    "deviceInformation" => $initialPaymentId ? null : $this->getDeviceInformation(),
+                    "initialPaymentId" => $initialPaymentId,
                 ])->getResponseData();
                 $this->setPaymentFromPSQResponse($payment, $response);
             } else {

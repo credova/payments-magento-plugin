@@ -45,6 +45,31 @@ bin/magento cache:flush
 2. Enter the Webhook ID and Webhook Key in to the Magento Admin panel under:
    **Stores > Configuration > Sales > Payment Methods > PublicSquare**
 
+## Subscription Renewals
+
+A subscription module that places renewal orders with a saved PublicSquare card should mark each renewal. The
+payment then goes to PublicSquare as a recurring charge of the subscription's first payment, with no shopper
+present. Rules for shopper checkouts, such as asking for the card security code again, don't apply to it.
+
+Inject `PublicSquare\Payments\Model\SubscriptionRenewal` and call `markAsRenewal()` before you place the order, in
+the same PHP process:
+
+```php
+// $initialOrder is the order that started the subscription, paid through PublicSquare.
+$this->subscriptionRenewal->markAsRenewal($quote, $initialOrder);
+$order = $this->cartManagement->submit($quote);
+```
+
+Pass the subscription's first order paid with the card the renewal charges. If the subscriber has since changed
+cards, the renewal goes as a one-off payment and the log says so; its order can then start the series for the new
+card.
+
+`markAsRenewal()` throws a `LocalizedException` when the initial order has no PublicSquare payment, for example a
+subscription started with another payment method. Place that renewal without the mark.
+
+Recurring payments are supported for merchant accounts on Nuvei. Accounts on Moov also need the first order sent as
+an initial recurring payment, which the plugin doesn't do yet.
+
 ## Development
 
 To build, run, or test this plugin locally, see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md).

@@ -171,3 +171,5 @@ Currency,Currency
 "review","Needs Reviewed"
 "psq_refund_id","Refund ID"
 "psq_settlement_id","Settlement ID"
+"Order %1 was not paid through PublicSquare, so it can't start a recurring payment.","Order %1 was not paid through PublicSquare, so it can't start a recurring payment."
+"Save the quote before marking it as a subscription renewal.","Save the quote before marking it as a subscription renewal."
