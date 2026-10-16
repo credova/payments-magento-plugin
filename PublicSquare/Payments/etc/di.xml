@@ -19,6 +19,11 @@
             <argument name="session" xsi:type="object">Magento\Checkout\Model\Session\Proxy</argument>
         </arguments>
     </type>
+    <!-- DEV ONLY (spike, not for merge): simulated card security code rule. See Dev/README.md. -->
+    <preference for="PublicSquare\Payments\Dev\CvcUpdatedReporterInterface" type="PublicSquare\Payments\Dev\CvcUpdatedReporter"/>
+    <type name="PublicSquare\Payments\Api\Authenticated\PaymentCreate">
+        <plugin name="publicsquare_dev_simulate_cvc_step_up_rule" type="PublicSquare\Payments\Dev\SimulateCvcStepUpRulePlugin"/>
+    </type>
     <type name="PublicSquare\Payments\Logger\Handler">
         <arguments>
             <argument name="filesystem" xsi:type="object">Magento\Framework\Filesystem\Driver\File</argument>

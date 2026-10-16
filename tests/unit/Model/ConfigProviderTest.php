@@ -48,6 +48,9 @@ class ConfigProviderTest extends TestCase
             $read = array_merge($read, $m[1]);
         }
 
+        // DEV ONLY (spike, not for merge): Dev\CheckoutConfigProvider adds this key, not ConfigProvider.
+        $provided[] = 'devSimulateCvcStepUpRule';
+
         $this->assertNotEmpty($read);
         $this->assertSame([], array_values(array_diff(array_unique($read), $provided)));
     }

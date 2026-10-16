@@ -16,6 +16,8 @@
         <arguments>
             <argument name="configProviders" xsi:type="array">
                 <item name="publicsquare_payments" xsi:type="object">PublicSquare\Payments\Model\ConfigProvider</item>
+                <!-- DEV ONLY (spike, not for merge): simulated card security code rule. See Dev/README.md. -->
+                <item name="publicsquare_payments_dev_cvc_step_up_rule" xsi:type="object">PublicSquare\Payments\Dev\CheckoutConfigProvider</item>
             </argument>
         </arguments>
     </type>
