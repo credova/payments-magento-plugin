@@ -127,7 +127,7 @@ class PaymentExecutorTest extends TestCase
     }
 
     #[DataProvider('renewals')]
-    public function testSendsARenewalWithNoShopperDevice(string $cardId, ?string $initialPaymentId, ?string $warning): void
+    public function testSendsARenewal(string $cardId, ?string $initialPaymentId, ?string $warning): void
     {
         [$payment] = $this->checkoutPayment([
             'cardId' => $cardId,
@@ -138,7 +138,8 @@ class PaymentExecutorTest extends TestCase
         $this->executor()->executeAuthorizeCapture($this->subject($payment));
 
         $this->assertSame($initialPaymentId, $request->data['initialPaymentId']);
-        $this->assertNull($request->data['deviceInformation']);
+        // The device of the request that placed the renewal, as for any order: none from cron or a queue consumer.
+        $this->assertSame(['ip_address' => '203.0.113.7'], $request->data['deviceInformation']);
         $this->assertSame($warning, $this->logger->lastMessage('warning'));
     }
 

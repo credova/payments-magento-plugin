@@ -443,11 +443,7 @@ class PaymentExecutor
                     "shippingAddress" => $shippingAddress,
                     "billingAddress" => $billingAddress,
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
-                    // A renewal has no shopper, so the device is the merchant's, not the cardholder's. That holds
-                    // when it charges another card and goes as a one-off.
-                    "deviceInformation" => $this->subscriptionRenewal->isRenewal($payment)
-                        ? null
-                        : $this->getDeviceInformation(),
+                    "deviceInformation" => $this->getDeviceInformation(),
                     "initialPaymentId" => $initialPaymentId,
                 ])->getResponseData();
                 $this->setPaymentFromPSQResponse($payment, $response);

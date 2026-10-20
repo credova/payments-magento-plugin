@@ -114,17 +114,6 @@ class SubscriptionRenewal
     }
 
     /**
-     * Whether markAsRenewal() marked the payment's quote, whichever card the payment charges.
-     *
-     * @param InfoInterface $payment The order payment
-     * @return bool
-     */
-    public function isRenewal(InfoInterface $payment): bool
-    {
-        return (bool) $payment->getAdditionalInformation(self::INITIAL_PAYMENT_KEY);
-    }
-
-    /**
      * The PublicSquare payment ID the payment renews, or null when it isn't a renewal.
      *
      * Also null when the renewal charges another card, such as when the card changed after markAsRenewal(): a

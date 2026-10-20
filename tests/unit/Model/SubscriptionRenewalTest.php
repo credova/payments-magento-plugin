@@ -39,7 +39,6 @@ class SubscriptionRenewalTest extends TestCase
         $payment = new Interceptor();
 
         $this->assertNull($this->renewal->getInitialPaymentId($payment, 'card_1'));
-        $this->assertFalse($this->renewal->isRenewal($payment));
     }
 
     public static function renewalPayments(): array
@@ -65,7 +64,6 @@ class SubscriptionRenewalTest extends TestCase
             $quote->getPayment()->getAdditionalInformation(),
         );
         $this->assertSame('pmt_first', $this->renewal->getInitialPaymentId($orderPayment, 'card_1'));
-        $this->assertTrue($this->renewal->isRenewal($orderPayment));
     }
 
     public function testSendsAPaymentWhoseCardChangedAfterTheMarkAsAOneOff(): void
@@ -77,7 +75,6 @@ class SubscriptionRenewalTest extends TestCase
         $this->logger->expects($this->once())->method('warning');
 
         $this->assertNull($this->renewal->getInitialPaymentId($orderPayment, 'card_replacement'));
-        $this->assertTrue($this->renewal->isRenewal($orderPayment));
     }
 
     public static function ordersNotPaidThroughPublicSquare(): array
