@@ -112,12 +112,26 @@ class PaymentExecutorTest extends TestCase
     public function testSendsARenewalAsARecurringPaymentWithNoShopperDevice(): void
     {
         [$payment] = $this->checkoutPayment();
+        $this->subscriptionRenewal->method('isRenewal')->with(77)->willReturn(true);
         $this->subscriptionRenewal->method('getInitialPaymentId')->with(77, 'card_1')->willReturn('pmt_first');
         $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
 
         $this->executor()->executeAuthorizeCapture($this->subject($payment));
 
         $this->assertSame('pmt_first', $request->data['initialPaymentId']);
+        $this->assertNull($request->data['deviceInformation']);
+    }
+
+    public function testSendsARenewalOfAnotherCardAsAOneOffWithNoShopperDevice(): void
+    {
+        [$payment] = $this->checkoutPayment();
+        $this->subscriptionRenewal->method('isRenewal')->with(77)->willReturn(true);
+        $this->subscriptionRenewal->method('getInitialPaymentId')->with(77, 'card_1')->willReturn(null);
+        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+
+        $this->executor()->executeAuthorizeCapture($this->subject($payment));
+
+        $this->assertNull($request->data['initialPaymentId']);
         $this->assertNull($request->data['deviceInformation']);
     }
 

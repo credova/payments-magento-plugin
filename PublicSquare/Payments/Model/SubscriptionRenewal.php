@@ -61,7 +61,8 @@ class SubscriptionRenewal
         $payment = $initialOrder->getPayment();
         // cc_trans_id keeps the PublicSquare payment ID; a refund can move last_trans_id to the refund's ID.
         $paymentId = (string) $payment?->getCcTransId();
-        $cardId = $payment?->getAdditionalInformation('raw_details_info')['payment_method']['card']['id'] ?? null;
+        // The card the payment was created with. Unlike raw_details_info, later API responses don't replace it.
+        $cardId = $payment?->getAdditionalInformation('cardId');
         if (!str_starts_with($paymentId, 'pmt_') || !$cardId) {
             throw new LocalizedException(
                 __(
@@ -97,5 +98,16 @@ class SubscriptionRenewal
             return null;
         }
         return $initialPayment['paymentId'];
+    }
+
+    /**
+     * Whether markAsRenewal() marked the quote, whichever card the renewal charges.
+     *
+     * @param int $quoteId
+     * @return bool
+     */
+    public function isRenewal(int $quoteId): bool
+    {
+        return isset($this->initialPayments[$quoteId]);
     }
 }

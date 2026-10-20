@@ -432,7 +432,8 @@ class PaymentExecutor
             }
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
-                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId((int) $quote->getId(), $cardId);
+                $quoteId = (int) $quote->getId();
+                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($quoteId, $cardId);
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),
@@ -443,8 +444,11 @@ class PaymentExecutor
                     "shippingAddress" => $shippingAddress,
                     "billingAddress" => $billingAddress,
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
-                    // A renewal has no shopper, so the device is the merchant's, not the cardholder's.
-                    "deviceInformation" => $initialPaymentId ? null : $this->getDeviceInformation(),
+                    // A renewal has no shopper, so the device is the merchant's, not the cardholder's. That holds
+                    // when it charges another card and goes as a one-off.
+                    "deviceInformation" => $this->subscriptionRenewal->isRenewal($quoteId)
+                        ? null
+                        : $this->getDeviceInformation(),
                     "initialPaymentId" => $initialPaymentId,
                 ])->getResponseData();
                 $this->setPaymentFromPSQResponse($payment, $response);
