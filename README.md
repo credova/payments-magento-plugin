@@ -59,7 +59,12 @@ the order, call `markAsRenewal()`:
 $quote->getPayment()->importData(['method' => 'publicsquare_payments_cc_vault', 'additional_data' => [
     'public_hash' => $token->getPublicHash(),
 ]]);
-$this->subscriptionRenewal->markAsRenewal($quote, $initialOrder);
+try {
+    $this->subscriptionRenewal->markAsRenewal($quote, $initialOrder);
+} catch (\Magento\Framework\Exception\LocalizedException $e) {
+    // Not a recurring payment of $initialOrder: place the renewal as a one-off payment instead.
+    $this->logger->warning($e->getMessage());
+}
 $order = $this->cartManagement->submit($quote);
 ```
 
@@ -73,8 +78,10 @@ Pass the subscription's first order paid with the card the renewal charges. `mar
 * the quote's payment isn't set to a PublicSquare card;
 * the renewal charges another card than the initial order, for example after the subscriber replaced their card.
 
-Place those renewals without the mark. They go as one-off payments. A renewal of a replaced card can then start a
-new series: pass its order as the initial order of later renewals.
+Catch the exception and place the renewal anyway, as the example does: without the mark, it goes as a one-off
+payment, the same as a shopper's payment with a saved card. If the order ships to an address the card hasn't used
+before, PublicSquare can reject that payment for a missing card security code. A renewal of a replaced card can then
+start a new series: pass its order as the initial order of later renewals.
 
 Recurring payments are supported for merchant accounts on Nuvei. Accounts on Moov also need the first order sent as
 an initial recurring payment, which the plugin doesn't do yet.
