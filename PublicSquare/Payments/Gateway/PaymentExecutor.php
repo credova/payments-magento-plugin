@@ -432,8 +432,7 @@ class PaymentExecutor
             }
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
-                $quoteId = (int) $quote->getId();
-                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($quoteId, $cardId);
+                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($payment, $cardId);
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),
@@ -446,7 +445,7 @@ class PaymentExecutor
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
                     // A renewal has no shopper, so the device is the merchant's, not the cardholder's. That holds
                     // when it charges another card and goes as a one-off.
-                    "deviceInformation" => $this->subscriptionRenewal->isRenewal($quoteId)
+                    "deviceInformation" => $this->subscriptionRenewal->isRenewal($payment)
                         ? null
                         : $this->getDeviceInformation(),
                     "initialPaymentId" => $initialPaymentId,

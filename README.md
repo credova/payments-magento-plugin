@@ -51,21 +51,30 @@ A subscription module that places renewal orders with a saved PublicSquare card 
 payment then goes to PublicSquare as a recurring charge of the subscription's first payment, with no shopper
 present. Rules for shopper checkouts, such as asking for the card security code again, don't apply to it.
 
-Inject `PublicSquare\Payments\Model\SubscriptionRenewal` and call `markAsRenewal()` before you place the order, in
-the same PHP process:
+Inject `PublicSquare\Payments\Model\SubscriptionRenewal`. After you set the quote's payment, and before you place
+the order, call `markAsRenewal()`:
 
 ```php
 // $initialOrder is the order that started the subscription, paid through PublicSquare.
+$quote->getPayment()->importData(['method' => 'publicsquare_payments_cc_vault', 'additional_data' => [
+    'public_hash' => $token->getPublicHash(),
+]]);
 $this->subscriptionRenewal->markAsRenewal($quote, $initialOrder);
 $order = $this->cartManagement->submit($quote);
 ```
 
-Pass the subscription's first order paid with the card the renewal charges. If the subscriber has since changed
-cards, the renewal goes as a one-off payment and the log says so; its order can then start the series for the new
-card.
+`markAsRenewal()` saves the quote with the mark, so the order can be placed in another process, such as a queue
+consumer. Setting the quote's payment again removes the mark.
 
-`markAsRenewal()` throws a `LocalizedException` when the initial order has no PublicSquare payment, for example a
-subscription started with another payment method. Place that renewal without the mark.
+Pass the subscription's first order paid with the card the renewal charges. `markAsRenewal()` throws a
+`LocalizedException`, and leaves the quote unmarked, when:
+
+* the initial order has no PublicSquare payment, for example a subscription started with another payment method;
+* the quote's payment isn't set to a PublicSquare card;
+* the renewal charges another card than the initial order, for example after the subscriber replaced their card.
+
+Place those renewals without the mark. They go as one-off payments. A renewal of a replaced card can then start a
+new series: pass its order as the initial order of later renewals.
 
 Recurring payments are supported for merchant accounts on Nuvei. Accounts on Moov also need the first order sent as
 an initial recurring payment, which the plugin doesn't do yet.

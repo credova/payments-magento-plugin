@@ -9,6 +9,7 @@ use Magento\Framework\Event\Observer;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Payment\Gateway\Command\CommandException;
 use Magento\Payment\Gateway\Data\PaymentDataObjectInterface;
+use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Quote\Model\QuoteRepository;
 use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
@@ -76,7 +77,11 @@ class PaymentExecutorTest extends TestCase
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
-        $this->subscriptionRenewal = $this->createMock(SubscriptionRenewal::class);
+        $this->subscriptionRenewal = new SubscriptionRenewal(
+            $this->createMock(CartRepositoryInterface::class),
+            $this->tokenManagement,
+            $this->logger,
+        );
     }
 
     // ---- Create the payment (authorize, or authorize and capture) ----
@@ -109,30 +114,32 @@ class PaymentExecutorTest extends TestCase
         ], $request->data);
     }
 
-    public function testSendsARenewalAsARecurringPaymentWithNoShopperDevice(): void
+    public static function renewals(): array
     {
-        [$payment] = $this->checkoutPayment();
-        $this->subscriptionRenewal->method('isRenewal')->with(77)->willReturn(true);
-        $this->subscriptionRenewal->method('getInitialPaymentId')->with(77, 'card_1')->willReturn('pmt_first');
-        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
-
-        $this->executor()->executeAuthorizeCapture($this->subject($payment));
-
-        $this->assertSame('pmt_first', $request->data['initialPaymentId']);
-        $this->assertNull($request->data['deviceInformation']);
+        return [
+            'of the initial card, as recurring' => ['card_1', 'pmt_first', null],
+            'of a card changed after the mark, as a one-off' => [
+                'card_replacement',
+                null,
+                'PSQ renewal uses another card than its initial payment; sent as one-off',
+            ],
+        ];
     }
 
-    public function testSendsARenewalOfAnotherCardAsAOneOffWithNoShopperDevice(): void
+    #[DataProvider('renewals')]
+    public function testSendsARenewalWithNoShopperDevice(string $cardId, ?string $initialPaymentId, ?string $warning): void
     {
-        [$payment] = $this->checkoutPayment();
-        $this->subscriptionRenewal->method('isRenewal')->with(77)->willReturn(true);
-        $this->subscriptionRenewal->method('getInitialPaymentId')->with(77, 'card_1')->willReturn(null);
+        [$payment] = $this->checkoutPayment([
+            'cardId' => $cardId,
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1'],
+        ]);
         $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
 
         $this->executor()->executeAuthorizeCapture($this->subject($payment));
 
-        $this->assertNull($request->data['initialPaymentId']);
+        $this->assertSame($initialPaymentId, $request->data['initialPaymentId']);
         $this->assertNull($request->data['deviceInformation']);
+        $this->assertSame($warning, $this->logger->lastMessage('warning'));
     }
 
     public function testUsesTheBillingEmailAndNoShippingForAGuestVirtualCart(): void

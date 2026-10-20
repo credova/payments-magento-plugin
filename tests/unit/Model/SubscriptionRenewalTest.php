@@ -3,53 +3,81 @@
 namespace PublicSquare\Payments\Test\Unit\Model;
 
 use Magento\Framework\Exception\LocalizedException;
-use Magento\Quote\Api\Data\CartInterface;
+use Magento\Quote\Api\CartRepositoryInterface;
+use Magento\Quote\Model\Quote;
+use Magento\Quote\Model\Quote\Payment;
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
+use Magento\Vault\Api\Data\PaymentTokenInterface;
+use Magento\Vault\Api\PaymentTokenManagementInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 /**
- * SubscriptionRenewal remembers, by quote, which PublicSquare payment a renewal continues. PaymentExecutorTest covers
- * how the payment request uses it.
+ * SubscriptionRenewal saves, on the renewal's quote payment, which PublicSquare payment the renewal continues. Magento
+ * copies it to the order payment, where PaymentExecutor reads it. PaymentExecutorTest covers the payment request.
  */
 class SubscriptionRenewalTest extends TestCase
 {
+    private CartRepositoryInterface $quoteRepository;
+    private PaymentTokenManagementInterface $tokenManagement;
     private Logger $logger;
     private SubscriptionRenewal $renewal;
 
     protected function setUp(): void
     {
+        $this->quoteRepository = $this->createMock(CartRepositoryInterface::class);
+        $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->logger = $this->createMock(Logger::class);
-        $this->renewal = new SubscriptionRenewal($this->logger);
+        $this->renewal = new SubscriptionRenewal($this->quoteRepository, $this->tokenManagement, $this->logger);
     }
 
-    public function testHasNoInitialPaymentForAnUnmarkedQuote(): void
+    public function testHasNoInitialPaymentForAnUnmarkedPayment(): void
     {
-        $this->assertNull($this->renewal->getInitialPaymentId(77, 'card_1'));
-        $this->assertFalse($this->renewal->isRenewal(77));
+        $payment = new Interceptor();
+
+        $this->assertNull($this->renewal->getInitialPaymentId($payment, 'card_1'));
+        $this->assertFalse($this->renewal->isRenewal($payment));
     }
 
-    public function testMarksTheQuoteAsARenewalOfTheInitialOrdersPayment(): void
+    public static function renewalPayments(): array
     {
+        return [
+            'saved card' => [['public_hash' => 'hash_abc']],
+            'card ID' => [['cardId' => 'card_1']],
+            'payment method nonce' => [['payment_method_nonce' => 'card_1']],
+        ];
+    }
+
+    #[DataProvider('renewalPayments')]
+    public function testSavesTheMarkOnTheQuotePayment(array $renewalPayment): void
+    {
+        $quote = $this->quote($renewalPayment);
+        $this->quoteRepository->expects($this->once())->method('save')->with($quote);
+
         // A refund moved last_trans_id to the refund's ID; cc_trans_id still has the payment.
-        $this->renewal->markAsRenewal($this->quote(77), $this->order('pmt_first', 'card_1', 'pmt_first-refund'));
+        $this->renewal->markAsRenewal($quote, $this->order('pmt_first', 'card_1', 'pmt_first-refund'));
 
-        $this->assertSame('pmt_first', $this->renewal->getInitialPaymentId(77, 'card_1'));
-        $this->assertTrue($this->renewal->isRenewal(77));
-        $this->assertNull($this->renewal->getInitialPaymentId(78, 'card_1'));
-        $this->assertFalse($this->renewal->isRenewal(78));
+        // Magento copies the quote payment's additional information to the order payment.
+        $orderPayment = (new Interceptor())->setAdditionalInformation(
+            $quote->getPayment()->getAdditionalInformation(),
+        );
+        $this->assertSame('pmt_first', $this->renewal->getInitialPaymentId($orderPayment, 'card_1'));
+        $this->assertTrue($this->renewal->isRenewal($orderPayment));
     }
 
-    public function testDoesNotSendARenewalOfAnotherCardAsRecurring(): void
+    public function testSendsAPaymentWhoseCardChangedAfterTheMarkAsAOneOff(): void
     {
-        $this->renewal->markAsRenewal($this->quote(77), $this->order('pmt_first', 'card_1'));
+        $orderPayment = (new Interceptor())->setAdditionalInformation(
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY,
+            ['paymentId' => 'pmt_first', 'cardId' => 'card_1'],
+        );
         $this->logger->expects($this->once())->method('warning');
 
-        $this->assertNull($this->renewal->getInitialPaymentId(77, 'card_replacement'));
-        $this->assertTrue($this->renewal->isRenewal(77));
+        $this->assertNull($this->renewal->getInitialPaymentId($orderPayment, 'card_replacement'));
+        $this->assertTrue($this->renewal->isRenewal($orderPayment));
     }
 
     public static function ordersNotPaidThroughPublicSquare(): array
@@ -67,30 +95,55 @@ class SubscriptionRenewalTest extends TestCase
         ?string $cardId,
         string $lastTransId
     ): void {
-        $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage(
-            'Order 100000042 was not paid through PublicSquare, so it can\'t start a recurring payment.',
+        $this->expectRefusal('Order 100000042 was not paid through PublicSquare, so it can\'t start a recurring payment.');
+
+        $this->renewal->markAsRenewal($this->quote(['cardId' => 'card_1']), $this->order($ccTransId, $cardId, $lastTransId));
+    }
+
+    public static function quotesWithNoPublicSquareCard(): array
+    {
+        return [
+            'no payment set' => [[]],
+            'a saved card the customer does not have' => [['public_hash' => 'hash_unknown']],
+        ];
+    }
+
+    #[DataProvider('quotesWithNoPublicSquareCard')]
+    public function testRefusesAQuoteWithNoPublicSquareCard(array $renewalPayment): void
+    {
+        $this->expectRefusal('Set the quote\'s PublicSquare payment before marking it as a subscription renewal.');
+
+        $this->renewal->markAsRenewal($this->quote($renewalPayment), $this->order('pmt_first', 'card_1'));
+    }
+
+    public function testRefusesARenewalOfAnotherCard(): void
+    {
+        $this->expectRefusal(
+            'The renewal charges another card than order 100000042, so it can\'t continue its recurring payment.',
         );
 
-        try {
-            $this->renewal->markAsRenewal($this->quote(77), $this->order($ccTransId, $cardId, $lastTransId));
-        } finally {
-            $this->assertFalse($this->renewal->isRenewal(77));
-        }
+        $this->renewal->markAsRenewal($this->quote(['cardId' => 'card_replacement']), $this->order('pmt_first', 'card_1'));
     }
 
-    public function testRefusesAQuoteThatIsNotSaved(): void
+    /** Expects markAsRenewal() to refuse with $message, and to leave the quote unmarked and unsaved. */
+    private function expectRefusal(string $message): void
     {
+        $this->quoteRepository->expects($this->never())->method('save');
         $this->expectException(LocalizedException::class);
-        $this->expectExceptionMessage('Save the quote before marking it as a subscription renewal.');
-
-        $this->renewal->markAsRenewal($this->quote(null), $this->order('pmt_first', 'card_1'));
+        $this->expectExceptionMessage($message);
     }
 
-    private function quote(?int $id): CartInterface
+    /** Customer 42's renewal quote, whose payment has $additionalInformation. Customer 42 saved card_1 as hash_abc. */
+    private function quote(array $additionalInformation): Quote
     {
-        $quote = $this->createMock(CartInterface::class);
-        $quote->method('getId')->willReturn($id);
+        $token = $this->createMock(PaymentTokenInterface::class);
+        $token->method('getGatewayToken')->willReturn('card_1');
+        $this->tokenManagement->method('getByPublicHash')
+            ->willReturnCallback(fn ($hash, $customerId) => $hash === 'hash_abc' && $customerId === 42 ? $token : null);
+        $payment = (new Payment())->setAdditionalInformation($additionalInformation);
+        $quote = $this->createMock(Quote::class);
+        $quote->method('getCustomerId')->willReturn(42);
+        $quote->method('getPayment')->willReturn($payment);
         return $quote;
     }
 
