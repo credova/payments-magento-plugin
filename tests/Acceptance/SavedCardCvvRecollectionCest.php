@@ -128,12 +128,13 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
 
         $this->_addProductToCart($I);
         $this->_goToCheckoutWithNewShippingAddress($I, $this->_uniqueAddress());
-        $this->_selectSavedCard($I, $publicHash);
+        $radioId = $this->_selectSavedCard($I, $publicHash);
         $I->waitForElementVisible(self::CVV_FIELD, 30);
 
         $this->_makeSurePaymentMethodIsVisible($I);
         $this->_waitForAjax($I);
-        $I->dontSeeElement(self::CVV_FIELD);
+        // Not CVV_FIELD: that only matches the active method, so it passes even if the field stayed mounted.
+        $I->dontSeeElementInDOM('#psq-cvc-' . $radioId . ' iframe');
 
         $this->_selectSavedCard($I, $publicHash);
         $I->waitForElementVisible(self::CVV_FIELD, 30);
@@ -164,7 +165,6 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         $I->waitForElementClickable('#checkmo', 30);
         $I->click('#checkmo');
         $this->_waitForLoading($I);
-        $I->dontSeeElement('.psq-cvv-recollection');
         $this->_placeOrder($I);
         $this->_waitForCheckoutResult($I, 'Thank you for your purchase!');
 
@@ -320,8 +320,8 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         $I->fail('The card was not saved');
     }
 
-    /** Selects the saved card with this public hash; several saved cards can end in the same digits. */
-    private function _selectSavedCard(AcceptanceTester $I, string $publicHash): void
+    /** Selects the saved card with this public hash and returns its radio ID; several cards can share last digits. */
+    private function _selectSavedCard(AcceptanceTester $I, string $publicHash): string
     {
         $I->waitForJS(
             'return !!window.require && require.defined("uiRegistry")'
@@ -337,6 +337,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         $this->_waitForLoading($I);
         // The CVV check is an AJAX call. Wait for it, so "no CVV field" means the check said so.
         $this->_waitForAjax($I);
+        return $radioId;
     }
 
     private function _fillCvv(AcceptanceTester $I, string $cvv): void

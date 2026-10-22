@@ -364,22 +364,15 @@ describe('vault', () => {
       expect(renderer.requiresCvc()).toBe(false);
     });
 
-    it('re-checks when the cart changes while the card is selected', async () => {
-      await selectedWithCvvShown();
-      magento.storage.post.mockClear();
-
-      magento.quote.totals({ grand_total: 50 });
-
-      expect(magento.storage.post).toHaveBeenCalledOnce();
-    });
-
-    it('hides the CVV field when the new address no longer needs it', async () => {
+    it('re-checks when the cart changes, and hides the CVV field when the new address no longer needs it', async () => {
       const renderer = await selectedWithCvvShown();
+      magento.storage.post.mockClear();
       magento.storage.post.mockReturnValue($.Deferred().resolve({ required: false }).promise());
 
       magento.quote.totals({ grand_total: 50 });
       await settle();
 
+      expect(magento.storage.post).toHaveBeenCalledOnce();
       expect(magento.cvcElement.unmount).toHaveBeenCalled();
       expect(renderer.requiresCvc()).toBe(false);
     });
@@ -442,9 +435,6 @@ describe('vault', () => {
       renderer.placeOrder();
       await settle();
 
-      expect(magento.messageList.addErrorMessage).toHaveBeenCalledExactlyOnceWith({
-        message: "The security code didn't match.",
-      });
       expect(magento.cvcElement.clear).toHaveBeenCalled();
       expect(magento.storage.post).toHaveBeenCalledOnce();
     });

@@ -55,7 +55,6 @@ define([
       cvcElement: null,
       cvcComplete: false,
       cvcCardId: null,
-      cvcMounting: null,
       cvvCheck: null,
       cvvCheckId: 0,
       submitting: false,
@@ -165,46 +164,39 @@ define([
       return check;
     },
 
-    // Mounts once, even when several checks finish together.
     mountCvcElement: function (cardBrand) {
       const self = this;
       if (self.cvcElement) {
         return Promise.resolve();
       }
-      if (!self.cvcMounting) {
-        self.cvcMounting = publicsquare
-          .ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk)
-          .then(function () {
-            // The customer may have picked something else while the SDK loaded.
-            if (self.cvcElement || !self.requiresCvc()) {
-              return;
+      return publicsquare
+        .ensureInitialized(window.checkoutConfig.payment.publicsquare_payments.pk)
+        .then(function () {
+          // Another check may have mounted it, or the customer picked something else, while the SDK loaded.
+          if (self.cvcElement || !self.requiresCvc()) {
+            return;
+          }
+          self.cvcComplete = false;
+          self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
+          self.cvcElement.on('change', function (event) {
+            self.cvcComplete = !!(event && event.complete);
+            if (self.cvcComplete) {
+              self.cvcErrorMessage('');
             }
-            self.cvcComplete = false;
-            self.cvcElement = publicsquare.createCvcElement('#' + self.getCvcContainerId(), cardBrand);
-            self.cvcElement.on('change', function (event) {
-              self.cvcComplete = !!(event && event.complete);
-              if (self.cvcComplete) {
-                self.cvcErrorMessage('');
-              }
-            });
-            // The input is in a cross-origin iframe, so the container can't use :focus-within.
-            self.cvcElement.on('focus', function () {
-              self.cvcFocused(true);
-            });
-            self.cvcElement.on('blur', function () {
-              self.cvcFocused(false);
-            });
-          })
-          .catch(function () {
-            self.cvcErrorMessage(
-              $t('The security code field could not be loaded. Please refresh the page and try again.'),
-            );
-          })
-          .finally(function () {
-            self.cvcMounting = null;
           });
-      }
-      return self.cvcMounting;
+          // The input is in a cross-origin iframe, so the container can't use :focus-within.
+          self.cvcElement.on('focus', function () {
+            self.cvcFocused(true);
+          });
+          self.cvcElement.on('blur', function () {
+            self.cvcFocused(false);
+          });
+        })
+        .catch(function () {
+          self.cvcErrorMessage(
+            $t('The security code field could not be loaded. Please refresh the page and try again.'),
+          );
+        });
     },
 
     resetCvc: function () {
