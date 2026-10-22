@@ -1,14 +1,14 @@
 define([], function () {
   'use strict';
 
-  var SDK_URL = 'https://js.publicsquare.com/v1.16.1/';
-  var DEFAULT_LOAD_TIMEOUT_MS = 15000;
+  const SDK_URL = 'https://js.publicsquare.com/v2.0.0/';
+  const DEFAULT_LOAD_TIMEOUT_MS = 15000;
 
-  var sdkLoadPromise = null;
-  var sdkReference = null;
+  let sdkLoadPromise = null;
+  let sdkReference = null;
 
   function getLoadTimeoutMs() {
-    var override = window.publicsquareSdkLoadTimeoutMs;
+    const override = window.publicsquareSdkLoadTimeoutMs;
     if (typeof override === 'number' && override > 0) {
       return override;
     }
@@ -28,10 +28,10 @@ define([], function () {
   }
 
   function resolveSdk(loadedModule) {
-    var candidates = [loadedModule, window.publicsquarejs, window.PublicSquare];
+    const candidates = [loadedModule, window.publicsquarejs, window.PublicSquare];
 
-    for (var i = 0; i < candidates.length; i += 1) {
-      var sdk = normalizeSdkCandidate(candidates[i]);
+    for (let i = 0; i < candidates.length; i += 1) {
+      const sdk = normalizeSdkCandidate(candidates[i]);
       if (sdk) {
         return sdk;
       }
@@ -54,15 +54,15 @@ define([], function () {
 
   function loadSdkModule() {
     return new Promise(function (resolve, reject) {
-      var loaderRequire = getRequire();
+      const loaderRequire = getRequire();
       if (!loaderRequire) {
         reject(new Error('RequireJS is not available to load the PublicSquare SDK.'));
         return;
       }
 
-      var timeoutMs = getLoadTimeoutMs();
-      var timeoutId = null;
-      var settled = false;
+      const timeoutMs = getLoadTimeoutMs();
+      let timeoutId = null;
+      let settled = false;
 
       function cleanup() {
         if (timeoutId !== null) {
@@ -82,7 +82,7 @@ define([], function () {
 
       function onLoaded(loadedModule) {
         settle(function () {
-          var resolvedSdk = resolveSdk(loadedModule);
+          const resolvedSdk = resolveSdk(loadedModule);
           if (resolvedSdk) {
             resolve(resolvedSdk);
             return;
@@ -117,10 +117,10 @@ define([], function () {
     });
   }
 
-  var amdGuardDepth = 0;
-  var amdGuardOriginalDefine = null;
-  var amdGuardOriginalAmd = null;
-  var amdGuardWrappedDefine = null;
+  let amdGuardDepth = 0;
+  let amdGuardOriginalDefine = null;
+  let amdGuardOriginalAmd = null;
+  let amdGuardWrappedDefine = null;
 
   function isRequireJsScript(script) {
     if (!script || typeof script.getAttribute !== 'function') {
@@ -132,12 +132,12 @@ define([], function () {
 
   function installAmdGuard() {
     if (amdGuardDepth === 0) {
-      var current = window.define;
+      const current = window.define;
       if (typeof current === 'function') {
         amdGuardOriginalDefine = current;
         amdGuardOriginalAmd = current.amd;
 
-        var wrapped = function () {
+        const wrapped = function () {
           return amdGuardOriginalDefine.apply(this, arguments);
         };
 
@@ -190,7 +190,7 @@ define([], function () {
   function runWithSdkAmdGuard(executor) {
     installAmdGuard();
 
-    var released = false;
+    let released = false;
     function release() {
       if (released) {
         return;
@@ -200,7 +200,7 @@ define([], function () {
     }
 
     try {
-      var result = executor();
+      const result = executor();
 
       if (result && typeof result.then === 'function') {
         return result.then(
@@ -246,7 +246,7 @@ define([], function () {
     return sdkLoadPromise;
   }
 
-  var loader = {
+  const loader = {
     init: function (apiKey, options) {
       return ensureSdkLoaded().then(function (sdk) {
         return runWithSdkAmdGuard(function () {

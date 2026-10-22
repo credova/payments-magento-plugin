@@ -110,7 +110,6 @@ To start again with a new CA, remove that directory and the old "mkcert" certifi
 | Check that the store and plugin work | `mise run dev:verify` |
 | Reload the plugin after a code change (generated code, DI, caches; add `--upgrade` for a schema or patch change) | `mise run dev:reload` |
 | Run the acceptance tests (starts Selenium; watch the browser at <http://localhost:7900>, password `secret`) | `mise run test:acceptance` |
-| Run the flaky admin order-create acceptance tests, which `test:acceptance` skips | `vendor/bin/codecept run tests/Acceptance/ -g admin-order` |
 | Turn on email (read it at <http://localhost:1080>) | `mise run dev:email` |
 | Save the stack volumes to `backups/` (stops the stack) | `mise run dev:backup [dir]` |
 | Restore the stack volumes from `backups/` (stops the stack; run `dev:up` after) | `mise run dev:restore [dir]` |

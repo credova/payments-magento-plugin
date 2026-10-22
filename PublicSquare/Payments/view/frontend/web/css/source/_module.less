@@ -1,0 +1,22 @@
+& when (@media-common = true) {
+  .psq-cvv-recollection-field {
+    .lib-form-element-input(@_type: input-text);
+    align-items: center;
+    display: flex;
+    max-width: 10em;
+
+    &._focus {
+      .lib-css(background, @input-text__focus__background);
+      .lib-css(border, @input-text__focus__border);
+      .lib-css(box-shadow, @focus__box-shadow);
+    }
+
+    &._error {
+      .lib-css(border-color, @form-element-validation__border-error);
+    }
+
+    iframe {
+      flex: 1 1 auto;
+    }
+  }
+}

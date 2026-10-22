@@ -36,7 +36,7 @@ function loadAdmin() {
   publicsquare = {
     loading: false,
     cardElement: null,
-    initElements: vi.fn((params, callback) => {
+    initElements: vi.fn(async (params, callback) => {
       // The SDK mounts an iframe in the selector.
       document.querySelector(params.selector).append(document.createElement('iframe'));
       publicsquare.cardElement = { metadata: { valid: true } };
@@ -87,6 +87,31 @@ describe('publicsquare_admin', () => {
 
     it('mounts again after Magento reloads the payment methods block', async () => {
       loadAdmin().init({ pk: 'pk_admin' });
+
+      document.querySelector('#order-billing_method_form').innerHTML = PAYMENT_FIELDSET;
+      await settle();
+      showPaymentForm();
+      await settle();
+
+      expect(publicsquare.initElements).toHaveBeenCalledTimes(2);
+      expect(document.querySelector('#publicsquare-elements-form iframe')).not.toBeNull();
+    });
+
+    it('mounts on the next reload after a reload during the SDK load removed the card form', async () => {
+      const admin = loadAdmin();
+      const mount = publicsquare.initElements.getMockImplementation();
+      publicsquare.initElements.mockImplementationOnce(async () => {
+        document.querySelector('#order-billing_method_form').innerHTML = '';
+        throw new Error("Couldn't find an empty element with selector #publicsquare-elements-form to mount on.");
+      });
+      publicsquare.initElements.mockImplementation(mount);
+      // The payment block loads after the page, when the admin adds a product.
+      document.querySelector('#order-billing_method_form').innerHTML = '';
+      admin.init({ pk: 'pk_admin' });
+      document.querySelector('#order-billing_method_form').innerHTML = PAYMENT_FIELDSET;
+      await settle();
+      showPaymentForm();
+      await settle();
 
       document.querySelector('#order-billing_method_form').innerHTML = PAYMENT_FIELDSET;
       await settle();

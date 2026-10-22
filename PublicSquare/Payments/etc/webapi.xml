@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Web API routes
+ *
+ * @category  PublicSquare
+ * @package   PublicSquare_Payments
+ * @author    PublicSquare <info@publicsquare.com>
+ * @copyright 2024 PublicSquare
+ * @license   http://opensource.org/licenses/osl-3.0.php (OSL 3.0)
+ * @link https://publicsquare.com/
+ */
+ -->
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi:etc/webapi.xsd">
+    <!-- Checkout asks whether the selected saved card needs its CVV re-entered. -->
+    <route url="/V1/publicsquare/carts/mine/cvv-requirement" method="POST">
+        <service class="PublicSquare\Payments\Api\CvvRequirementInterface" method="check"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+        <data>
+            <parameter name="customerId" force="true">%customer_id%</parameter>
+        </data>
+    </route>
+</routes>

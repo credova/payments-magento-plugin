@@ -21,16 +21,34 @@ class AdminSalesOrderCreate extends AcceptanceBase
     sleep(1);
   }
 
-  protected function _addProductToOrder(AcceptanceTester $I)
+  /**
+   * @param string|null $sku Adds this product. Null adds the last product in the search grid.
+   */
+  protected function _addProductToOrder(AcceptanceTester $I, ?string $sku = null)
   {
     $I->click('Add Products');
+    // Magento shows the product search after its loader appears, so the loading checks alone can pass too early.
+    $I->waitForElementVisible('#order-search', 60);
     $this->_waitForLoading($I);
+    if ($sku !== null) {
+      $I->fillField('#sales_order_create_search_grid_filter_sku', $sku);
+      $I->pressKey('#sales_order_create_search_grid_filter_sku', \Facebook\WebDriver\WebDriverKeys::ENTER);
+      $this->_waitForLoading($I);
+      $I->waitForText($sku, 30, '#sales_order_create_search_grid_table');
+    }
     $last_product = Locator::lastElement('#sales_order_create_search_grid_table>tbody>tr');
     $I->waitForElementClickable($last_product);
     $I->click($last_product);
+    // A row click before the grid script is ready selects nothing, and the add then adds no item.
+    $I->waitForJS(
+      "return [...document.querySelectorAll('#sales_order_create_search_grid_table tbody input[type=checkbox]')].some((c) => c.checked);",
+      10
+    );
     $this->_waitForLoading($I);
     $I->executeJS("document.querySelector('[title=\"Add Selected Product(s) to Order\"]').click()");
     $this->_waitForLoading($I);
+    $I->waitForElementNotVisible('#order-search', 30);
+    $I->dontSee('No ordered items', '#order-items_grid');
   }
 
   protected function _addCustomerToOrder(AcceptanceTester $I)

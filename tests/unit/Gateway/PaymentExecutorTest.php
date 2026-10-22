@@ -2,6 +2,7 @@
 
 namespace PublicSquare\Payments\Test\Unit\Gateway;
 
+use Magento\Checkout\Model\Session;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Event;
 use Magento\Framework\Event\Observer;
@@ -28,7 +29,9 @@ use PublicSquare\Payments\Api\Authenticated\PaymentRefund;
 use PublicSquare\Payments\Api\Authenticated\PaymentRefundFactory;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdateFactory;
+use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
 
 /**
@@ -54,6 +57,7 @@ class PaymentExecutorTest extends TestCase
     private PaymentTokenRepositoryInterface $tokenRepository;
     private PaymentTokenManagementInterface $tokenManagement;
     private EncryptorInterface $encryptor;
+    private CvvRequestedByPublicSquare $cvvRequests;
 
     protected function setUp(): void
     {
@@ -68,6 +72,7 @@ class PaymentExecutorTest extends TestCase
         $this->tokenFactory = $this->createMock(CreditCardTokenFactory::class);
         $this->tokenRepository = $this->createMock(PaymentTokenRepositoryInterface::class);
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
+        $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
     }
 
@@ -109,6 +114,39 @@ class PaymentExecutorTest extends TestCase
 
         $this->assertSame('billing@example.com', $request->data['email']);
         $this->assertNull($request->data['shippingAddress']);
+    }
+
+    /** After the failed order, checkout asks the requirement endpoint again, which then asks for this card's CVV. */
+    public function testRemembersWhenPublicSquareAsksForTheCvvAgain(): void
+    {
+        [$payment] = $this->checkoutPayment();
+        $request = $this->createMock(PaymentCreate::class);
+        $request->method('getResponseData')->willThrowException(CvvRecollectionRequiredException::create());
+        $this->factories[PaymentCreateFactory::class]->method('create')->willReturn($request);
+
+        try {
+            $this->executor()->executeAuthorizeCapture($this->subject($payment));
+            $this->fail('The payment should fail');
+        } catch (CommandException $e) {
+            $this->assertSame("Please re-enter your card's security code to continue.", $e->getMessage());
+        }
+
+        $this->assertTrue($this->cvvRequests->wasRequested(77, 'card_1'));
+    }
+
+    public function testDoesNotRememberOtherFailures(): void
+    {
+        [$payment] = $this->checkoutPayment();
+        $request = $this->createMock(PaymentCreate::class);
+        $request->method('getResponseData')->willThrowException(new \Exception('Declined'));
+        $this->factories[PaymentCreateFactory::class]->method('create')->willReturn($request);
+
+        try {
+            $this->executor()->executeAuthorizeCapture($this->subject($payment));
+        } catch (CommandException $e) {
+        }
+
+        $this->assertFalse($this->cvvRequests->wasRequested(77, 'card_1'));
     }
 
     public static function unpayableCheckouts(): array
@@ -360,7 +398,7 @@ class PaymentExecutorTest extends TestCase
             $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger, $this->transactions,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
-            $remoteAddress,
+            $remoteAddress, $this->cvvRequests,
         );
     }
 
@@ -452,6 +490,8 @@ class FakeToken implements PaymentTokenInterface
 
     public function __call($method, $args) {}
     public function getId() { return null; }
+    public function getEntityId() { return $this->data['entityId'] ?? null; }
+    public function setEntityId($entityId) { $this->data['entityId'] = $entityId; }
     public function setCustomerId($customerId) { $this->data['customerId'] = $customerId; }
     public function getCustomerId() { return $this->data['customerId'] ?? null; }
     public function setGatewayToken($token) { $this->data['gatewayToken'] = $token; }
