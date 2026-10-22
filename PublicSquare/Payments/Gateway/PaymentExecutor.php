@@ -12,6 +12,8 @@ use PublicSquare\Payments\Api\Authenticated\PaymentUpdateFactory;
 use PublicSquare\Payments\Api\Authenticated\PaymentRefundFactory;
 use PublicSquare\Payments\Api\Constants;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
+use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Event\Observer;
@@ -101,6 +103,11 @@ class PaymentExecutor
      */
     private $remoteAddress;
 
+    /**
+     * @var CvvRequestedByPublicSquare
+     */
+    private $cvvRequests;
+
     public function __construct(
         QuoteRepository $quoteRepository,
         PaymentCreateFactory $paymentCreateFactory,
@@ -115,7 +122,8 @@ class PaymentExecutor
         PaymentCancelFactory $paymentCancelFactory,
         PaymentUpdateFactory $paymentUpdateFactory,
         PaymentRefundFactory $paymentRefundFactory,
-        RemoteAddress $remoteAddress
+        RemoteAddress $remoteAddress,
+        CvvRequestedByPublicSquare $cvvRequests
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->paymentCreateFactory = $paymentCreateFactory;
@@ -131,6 +139,7 @@ class PaymentExecutor
         $this->paymentUpdateFactory = $paymentUpdateFactory;
         $this->paymentRefundFactory = $paymentRefundFactory;
         $this->remoteAddress = $remoteAddress;
+        $this->cvvRequests = $cvvRequests;
     }
 
     public function setCommandSubject(array $commandSubject)
@@ -432,6 +441,14 @@ class PaymentExecutor
                 throw new \Exception('Card ID not found');
             }
         } catch (\Exception $e) {
+            if ($e instanceof CvvRecollectionRequiredException) {
+                // Checkout asks for the CVV again after a failed order; this makes sure it does for this card.
+                $payment = $this->getPayment();
+                $this->cvvRequests->remember(
+                    (int) $payment->getOrder()->getQuoteId(),
+                    (string) $payment->getAdditionalInformation('cardId')
+                );
+            }
             $this->throwUserFriendlyException($e);
         }
     }

@@ -21,17 +21,20 @@ class CvvRequirement implements CvvRequirementInterface
     private PaymentTokenManagementInterface $tokenManagement;
     private CartRepositoryInterface $cartRepository;
     private RequirementResolver $resolver;
+    private CvvRequestedByPublicSquare $cvvRequests;
     private Logger $logger;
 
     public function __construct(
         PaymentTokenManagementInterface $tokenManagement,
         CartRepositoryInterface $cartRepository,
         RequirementResolver $resolver,
+        CvvRequestedByPublicSquare $cvvRequests,
         Logger $logger,
     ) {
         $this->tokenManagement = $tokenManagement;
         $this->cartRepository = $cartRepository;
         $this->resolver = $resolver;
+        $this->cvvRequests = $cvvRequests;
         $this->logger = $logger->withName('PSQ:CvvRequirement');
     }
 
@@ -47,7 +50,12 @@ class CvvRequirement implements CvvRequirementInterface
 
         $quote = $this->cartRepository->getActiveForCustomer($customerId);
         $shippingAddress = $this->getShippingAddress($quote);
-        if (!$this->resolver->isRequired($customerId, $token, $shippingAddress, $quote->getStoreId())) {
+        // PublicSquare already rejected a payment with this card in this cart until the CVV is re-entered, so ask
+        // even where our own check (or the setting being off) says not to.
+        $requestedByPublicSquare = $this->cvvRequests->wasRequested((int)$quote->getId(), $token->getGatewayToken());
+        if (!$requestedByPublicSquare
+            && !$this->resolver->isRequired($customerId, $token, $shippingAddress, $quote->getStoreId())
+        ) {
             return new CvvRequirementResult(false);
         }
 
