@@ -394,6 +394,7 @@ class PaymentExecutor
             $this->setCommandSubject($commandSubject);
 
             $payment = $this->getPayment();
+            $this->setCardToCharge($payment);
             $quote = $this->getQuote();
             $order = $payment->getOrder();
 
@@ -583,6 +584,33 @@ class PaymentExecutor
         );
         // Null for an unknown hash or another customer's. CaptureCommand turns '' into "Card not found".
         return $paymentToken ? (string) $paymentToken->getGatewayToken() : '';
+    }
+
+    /**
+     * Records the PSQ card to charge as cardId: the order customer's saved card for a public_hash (it replaces any card
+     * the client sent), or an admin order's payment_method_nonce. A new-card checkout already sent its cardId.
+     *
+     * @param \Magento\Sales\Model\Order\Payment $payment
+     * @return void
+     */
+    private function setCardToCharge($payment): void
+    {
+        $publicHash = $payment->getAdditionalInformation('public_hash');
+        if (!$publicHash) {
+            if ($nonce = $payment->getAdditionalInformation('payment_method_nonce')) {
+                $payment->setAdditionalInformation('cardId', $nonce);
+            }
+            return;
+        }
+        $customerId = $payment->getOrder()->getCustomerId();
+        if (!$customerId) {
+            throw new \Exception('Customer not found');
+        }
+        $cardId = $this->getCardIdFromPublicHash((string) $publicHash, $customerId);
+        if (!$cardId) {
+            throw new \Exception('Card not found');
+        }
+        $payment->setAdditionalInformation('cardId', $cardId);
     }
 
     public function throwUserFriendlyException(\Exception $e)
