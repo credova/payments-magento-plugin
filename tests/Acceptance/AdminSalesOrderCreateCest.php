@@ -5,12 +5,6 @@ namespace Tests\Acceptance;
 use Tests\Pages\AdminSalesOrderCreate;
 use Tests\Support\AcceptanceTester;
 
-/**
- * Flaky on the dev stack: the product grid or the card iframe is not ready in time. mise run test:acceptance skips this
- * group; run it on purpose with: vendor/bin/codecept run tests/Acceptance/ -g admin-order
- *
- * @group admin-order
- */
 class AdminSalesOrderCreateCest extends AdminSalesOrderCreate
 {
     public function successfulPayment(AcceptanceTester $I)
@@ -45,6 +39,24 @@ class AdminSalesOrderCreateCest extends AdminSalesOrderCreate
         $this->_addShippingMethodToOrder($I);
         $this->_addPaymentMethodToOrder($I, '4100000000000019');
         $this->_submitOrder($I, 'The payment could not be completed. Please verify your details and try again.');
+    }
+
+    public function virtualProductPayment(AcceptanceTester $I)
+    {
+        $this->_initialize($I);
+        $this->_adminCreateVirtualProduct($I);
+        $this->_goToNewSalesOrder($I);
+        $this->_addProductToOrder($I, 'gift-card');
+        $this->_addCustomerToOrder($I);
+        // A virtual order has no shipping step, so the admin loads the payment methods. An address change resets
+        // them, so blur the last address field first.
+        $I->see("You don't need to select a shipping method.");
+        $I->executeJS('document.activeElement.blur()');
+        $this->_waitForLoading($I);
+        $I->click('#order-billing_method_summary a');
+        $this->_waitForLoading($I);
+        $this->_addPaymentMethodToOrder($I);
+        $this->_submitOrder($I);
     }
 
     public function invalidPayment(AcceptanceTester $I)

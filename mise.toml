@@ -198,8 +198,7 @@ bin/docker-compose --profile test up -d --wait selenium
 [tasks."test:acceptance"]
 description = "Run the Codeception acceptance suite against the dev stack (starts Selenium)"
 depends = ["composer:install", "test:selenium"]
-# admin-order is flaky on the dev stack; run it with: vendor/bin/codecept run tests/Acceptance/ -g admin-order
-run = "vendor/bin/codecept run tests/Acceptance/ --skip-group admin-order"
+run = "vendor/bin/codecept run tests/Acceptance/"
 
 # Pass-through commands into the running dev stack. Extra args go to the command.
 # clean-path drops a stale relative ./bin from PATH; see bin/lib/clean-path.
