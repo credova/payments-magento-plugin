@@ -14,7 +14,6 @@ use PublicSquare\Payments\Api\Constants;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
-use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Framework\Event\Observer;
 use Magento\Vault\Model\CreditCardTokenFactory;
@@ -94,11 +93,6 @@ class PaymentExecutor
     private $_commandSubject;
 
     /**
-     * @var TransactionRepositoryInterface
-     */
-    private $transactionRepository;
-
-    /**
      * @var RemoteAddress
      */
     private $remoteAddress;
@@ -117,7 +111,6 @@ class PaymentExecutor
         PaymentTokenManagementInterface $tokenManagement,
         EncryptorInterface $encryptor,
         Logger $logger,
-        TransactionRepositoryInterface $transactionRepository,
         PaymentCaptureFactory $paymentCaptureFactory,
         PaymentCancelFactory $paymentCancelFactory,
         PaymentUpdateFactory $paymentUpdateFactory,
@@ -133,7 +126,6 @@ class PaymentExecutor
         $this->tokenManagement = $tokenManagement;
         $this->encryptor = $encryptor;
         $this->logger = $logger->withName('PSQ:PaymentExecutor');
-        $this->transactionRepository = $transactionRepository;
         $this->paymentCaptureFactory = $paymentCaptureFactory;
         $this->paymentCancelFactory = $paymentCancelFactory;
         $this->paymentUpdateFactory = $paymentUpdateFactory;
@@ -167,9 +159,8 @@ class PaymentExecutor
             $this->setCommandSubject($commandSubject);
 
             $payment = $this->getPayment();
-            $transaction = $this->getTransaction();
             // PSQ payment id
-            $transactionId = $transaction->getTxnId();
+            $transactionId = $this->getTransaction()?->getTxnId();
             $order = $payment->getOrder();
 
             $currentStatus = $payment->getAdditionalInformation("raw_details_info")["status"];
@@ -222,9 +213,8 @@ class PaymentExecutor
             $this->setCommandSubject($commandSubject);
 
             $payment = $this->getPayment();
-            $transaction = $this->getTransaction();
             // PSQ payment id
-            $transactionId = $transaction->getTxnId();
+            $transactionId = $this->getTransaction()?->getTxnId();
 
             if (!$transactionId) {
                 throw new CouldNotSaveException(__('Sorry, it is not possible to cancel this order.'));
@@ -358,14 +348,20 @@ class PaymentExecutor
         return $this->_commandSubject['amount'];
     }
 
+    /**
+     * The payment's open authorization, which capture and cancel act on. Null when the payment wasn't sent to
+     * PublicSquare yet, or its authorization was already captured or voided. Found through the payment, because
+     * last_trans_id holds PublicSquare's payment ID (pmt_...), not the transaction's entity ID.
+     *
+     * @return \Magento\Sales\Api\Data\TransactionInterface|null
+     */
     public function getTransaction()
     {
-        $tid = $this->getPayment()->getLastTransId();
-        try {
-            return $this->transactionRepository->get($tid);
-        } catch (\Magento\Framework\Exception\InputException $e) {
+        $payment = $this->getPayment();
+        if (!$payment->getLastTransId()) {
             return null;
         }
+        return $payment->getAuthorizationTransaction() ?: null;
     }
 
     public function getDeviceInformation()
