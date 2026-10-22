@@ -87,9 +87,6 @@ before, PublicSquare may reject it for a missing card security code.
 When a subscriber replaces their card, the first renewal on the new card starts a new series. Pass that renewal's
 order as the initial order for later renewals.
 
-Not every PublicSquare merchant account supports recurring payments yet. Check with PublicSquare before you mark
-renewals.
-
 ## Development
 
 To build, run, or test this plugin locally, see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md).
