@@ -21,9 +21,6 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
 {
     const PATH = "payments";
 
-    /**
-     * A later charge in a recurring series, such as a subscription renewal.
-     */
     private const RECURRING_TYPE_SUBSEQUENT = "subsequent";
 
     /**

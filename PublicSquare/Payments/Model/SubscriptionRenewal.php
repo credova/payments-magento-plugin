@@ -11,19 +11,12 @@ use Magento\Vault\Api\PaymentTokenManagementInterface;
 use PublicSquare\Payments\Logger\Logger;
 
 /**
- * Marks a cart as a subscription renewal, so its payment goes to PublicSquare as a recurring charge of the
- * subscription's first payment. A merchant's subscription module calls markAsRenewal() before it places the
- * renewal order.
- *
- * The mark is saved in the quote payment's additional information, which Magento copies to the order payment, so the
- * order can be placed in another process. Shoppers can't set it: QuotePaymentPlugin drops the key from the
- * additional_data a client sends.
+ * Marks a cart as a subscription renewal, so PublicSquare charges it as a recurring payment of the first order.
+ * QuotePaymentPlugin stops clients from setting the mark themselves.
  */
 class SubscriptionRenewal
 {
-    /**
-     * Additional-information key of the mark: the initial payment, as ['paymentId' => ..., 'cardId' => ...]
-     */
+    /** Holds ['paymentId' => ..., 'cardId' => ...] of the initial payment. */
     public const INITIAL_PAYMENT_KEY = 'psq_initial_payment';
 
     /**
@@ -41,11 +34,6 @@ class SubscriptionRenewal
      */
     private $logger;
 
-    /**
-     * @param CartRepositoryInterface $quoteRepository
-     * @param PaymentTokenManagementInterface $tokenManagement
-     * @param Logger $logger
-     */
     public function __construct(
         CartRepositoryInterface $quoteRepository,
         PaymentTokenManagementInterface $tokenManagement,
@@ -57,22 +45,16 @@ class SubscriptionRenewal
     }
 
     /**
-     * Marks the quote's payment as a renewal of the subscription that $initialOrder started, and saves the quote.
+     * Marks the quote as a renewal of $initialOrder's subscription and saves it. Set the quote's payment first.
      *
-     * Set the quote's payment first: the renewal must charge the card of the initial order's payment.
-     *
-     * @param Quote $quote The renewal order's quote, with its PublicSquare payment set
-     * @param OrderInterface $initialOrder The order that started the subscription, paid through PublicSquare
-     * @return void
-     * @throws LocalizedException When $initialOrder has no PublicSquare payment, the quote's payment isn't set, or
-     *     it charges another card than $initialOrder
+     * @throws LocalizedException When the renewal can't continue $initialOrder's recurring payments
      */
     public function markAsRenewal(Quote $quote, OrderInterface $initialOrder): void
     {
         $payment = $initialOrder->getPayment();
         // cc_trans_id keeps the PublicSquare payment ID; a refund can move last_trans_id to the refund's ID.
         $paymentId = (string) $payment?->getCcTransId();
-        // The card the payment was created with. Unlike raw_details_info, later API responses don't replace it.
+        // Unlike raw_details_info, cardId isn't replaced by later API responses.
         $cardId = $payment?->getAdditionalInformation('cardId');
         if (!str_starts_with($paymentId, 'pmt_') || !$cardId) {
             throw new LocalizedException(
@@ -103,16 +85,7 @@ class SubscriptionRenewal
         $this->quoteRepository->save($quote);
     }
 
-    /**
-     * The PublicSquare payment ID the payment renews, or null when it isn't a renewal.
-     *
-     * Also null when the renewal charges another card, such as when the card changed after markAsRenewal(): a
-     * recurring charge must use the card of the payment it continues.
-     *
-     * @param InfoInterface $payment The order payment
-     * @param string $cardId The PublicSquare card the renewal charges
-     * @return string|null
-     */
+    /** The payment this renews, or null if it isn't a renewal or now charges a different card. */
     public function getInitialPaymentId(InfoInterface $payment, string $cardId): ?string
     {
         $initialPayment = $payment->getAdditionalInformation(self::INITIAL_PAYMENT_KEY);
@@ -128,12 +101,7 @@ class SubscriptionRenewal
         return $initialPayment['paymentId'];
     }
 
-    /**
-     * The PublicSquare card the quote's payment charges, found the way CaptureCommand finds it.
-     *
-     * @param Quote $quote
-     * @return string|null
-     */
+    // Finds the card the same way CaptureCommand does.
     private function getRenewalCardId(Quote $quote): ?string
     {
         $payment = $quote->getPayment();

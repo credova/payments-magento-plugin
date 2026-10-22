@@ -15,10 +15,7 @@ use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\SubscriptionRenewal;
 
-/**
- * SubscriptionRenewal saves, on the renewal's quote payment, which PublicSquare payment the renewal continues. Magento
- * copies it to the order payment, where PaymentExecutor reads it. PaymentExecutorTest covers the payment request.
- */
+/** PaymentExecutorTest covers the payment request that reads this mark. */
 class SubscriptionRenewalTest extends TestCase
 {
     private CartRepositoryInterface $quoteRepository;
@@ -144,10 +141,7 @@ class SubscriptionRenewalTest extends TestCase
         return $quote;
     }
 
-    /**
-     * An order whose payment charged $cardId. Its raw_details_info is a later response with no card, as a cancel or
-     * capture can leave it, so the card must come from the cardId the payment was created with.
-     */
+    /** An order paid with $cardId whose raw_details_info has no card, as after a capture or cancel. */
     private function order(?string $ccTransId, ?string $cardId, ?string $lastTransId = null): OrderInterface
     {
         $payment = (new Interceptor())->setCcTransId($ccTransId)->setLastTransId($lastTransId ?? $ccTransId);
