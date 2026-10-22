@@ -49,7 +49,6 @@ define([
       },
       additionalData: {},
       idempotencyKey: null,
-      // CVV re-entry for a saved card shipping to a new address
       requiresCvc: false,
       cvcErrorMessage: '',
       cvcFocused: false,
@@ -66,16 +65,12 @@ define([
     },
 
     initialize: function () {
-      var self = this;
+      const self = this;
       self._super();
       self.idempotencyKey = self.generateIdempotencyKey();
       return self;
     },
 
-    /**
-     * Whether the store asks for the CVV when a saved card ships to a new address.
-     * @returns {Boolean}
-     */
     isCvvRecollectionEnabled: function () {
       return !!window.checkoutConfig.payment.publicsquare_payments.requireCvvForNewShippingAddress;
     },
@@ -85,22 +80,18 @@ define([
     },
 
     selectPaymentMethod: function () {
-      var result = this._super();
+      const result = this._super();
       this.checkCvvRequirement();
       return result;
     },
 
-    /**
-     * Asks the server whether this card needs its CVV re-entered for the cart's shipping address,
-     * and shows the CVV field when it does.
-     * @returns {Promise<Boolean>} Whether a CVV is required
-     */
+    // Asks the server whether this card needs its CVV for the cart's address. Resolves to whether it does.
     checkCvvRequirement: function () {
-      var self = this;
+      const self = this;
       if (!self.isCvvRecollectionEnabled()) {
         return Promise.resolve(false);
       }
-      var check = new Promise(function (resolve) {
+      const check = new Promise(function (resolve) {
         storage
           .post(
             urlBuilder.createUrl('/publicsquare/carts/mine/cvv-requirement', {}),
@@ -120,7 +111,7 @@ define([
             }
           })
           .fail(function () {
-            // The server checks again when the order is placed, so checkout carries on.
+            // PublicSquare still enforces the rule on the payment, so a failed check doesn't block checkout.
             resolve(self.requiresCvc());
           });
       });
@@ -135,7 +126,7 @@ define([
     },
 
     mountCvcElement: async function (cardBrand) {
-      var self = this;
+      const self = this;
       if (self.cvcElement) {
         return;
       }
@@ -173,10 +164,7 @@ define([
       this.requiresCvc(false);
     },
 
-    /**
-     * Sends the re-entered CVV to the saved card before the order is placed.
-     * @returns {Promise<Boolean>} Whether the order can be placed
-     */
+    // Resolves false when the order shouldn't be placed.
     attachCvc: async function () {
       if (!this.requiresCvc()) {
         return true;
@@ -185,7 +173,7 @@ define([
         this.cvcErrorMessage($t("Enter the card's security code."));
         return false;
       }
-      var result = await publicsquare.updateCvc(this.cvcCardId, this.cvcElement);
+      const result = await publicsquare.updateCvc(this.cvcCardId, this.cvcElement);
       if (!result || result.error) {
         this.cvcErrorMessage($t("We couldn't save the security code. Please check it and try again."));
         return false;
@@ -229,17 +217,17 @@ define([
      * Place order
      */
     placeOrder: function () {
-      var self = this;
+      const self = this;
       if (self.submitting || !additionalValidators.validate()) {
         return;
       }
       self.submitting = true;
-      var done = function () {
+      const done = function () {
         self.submitting = false;
       };
 
       self.hostedFields(() => {
-        var pendingCheck = self.cvvCheck;
+        const pendingCheck = self.cvvCheck;
         if (!pendingCheck) {
           self.attachCvcAndPlaceOrder(done);
           return;
@@ -253,12 +241,8 @@ define([
       });
     },
 
-    /**
-     * Attaches the re-entered CVV when this card needs it, then places the order.
-     * @param {Function} done Called when the attempt ends
-     */
     attachCvcAndPlaceOrder: function (done) {
-      var self = this;
+      const self = this;
       if (!self.requiresCvc()) {
         self.placeOrderWithCardId().always(done);
         return;
@@ -281,9 +265,9 @@ define([
     },
 
     placeOrderWithCardId: function () {
-      var self = this;
+      const self = this;
       fullScreenLoader.startLoader();
-      var serviceUrl = urlBuilder.createUrl(
+      const serviceUrl = urlBuilder.createUrl(
         customer.isLoggedIn() ? '/carts/mine/payment-information' : '/guest-carts/:quoteId/payment-information',
         {
           quoteId: quote.getQuoteId(),
@@ -323,7 +307,7 @@ define([
      * @returns {Object}
      */
     getData: function () {
-      var data = {
+      const data = {
         method: this.code,
         additional_data: {
           public_hash: this.publicHash,

@@ -1,7 +1,8 @@
 import $ from 'jquery';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAmdModule } from '../helpers/amd.js';
-import { failedPlaceOrder, observable, placeOrderRequest, uiComponent } from '../helpers/magento.js';
+import ko from 'knockout';
+import { failedPlaceOrder, placeOrderRequest, uiComponent } from '../helpers/magento.js';
 import { settle } from '../helpers/settle.js';
 
 const RENDERER = 'PublicSquare/Payments/view/frontend/web/js/view/payment/method-renderer/vault.js';
@@ -9,11 +10,7 @@ const ORDER_ERROR = 'PublicSquare/Payments/view/frontend/web/js/model/order-erro
 
 let magento;
 
-/**
- * Builds the saved-card renderer with fakes for each Magento model it uses.
- *
- * @param {{ requirement?: object }} options What the CVV requirement endpoint answers.
- */
+// Builds the renderer with fakes for Magento's models; `requirement` is the CVV endpoint's answer.
 function createRenderer({ requirement = { required: false } } = {}) {
   const cvcHandlers = {};
   magento = {
@@ -60,9 +57,9 @@ function createRenderer({ requirement = { required: false } } = {}) {
     },
     publicHash: 'hash_abc',
     hostedFields: (callback) => callback(),
-    requiresCvc: observable(false),
-    cvcErrorMessage: observable(''),
-    cvcFocused: observable(false),
+    requiresCvc: ko.observable(false),
+    cvcErrorMessage: ko.observable(''),
+    cvcFocused: ko.observable(false),
   });
 }
 

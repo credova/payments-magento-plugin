@@ -70,17 +70,3 @@ function withSuper(method, parent) {
     }
   };
 }
-
-/**
- * A Knockout-style observable: call with no argument to read, with one to write. Magento's real
- * components get these from initObservable(), which uiComponent() doesn't run.
- */
-export function observable(initial) {
-  let value = initial;
-  return function (...args) {
-    if (args.length) {
-      value = args[0];
-    }
-    return value;
-  };
-}
