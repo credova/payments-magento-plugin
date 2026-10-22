@@ -43,6 +43,7 @@ class Config extends AbstractHelper implements ICardInputCustomizationJSON
     const DYN_DESC_ENABLED = 'payment/publicsquare_payments/dynamic_descriptor_enabled';
     const DYN_DESC_MERCHANT = 'payment/publicsquare_payments/dynamic_descriptor_merchant';
     const DYN_DESC_MERCHANT_CONTACT = 'payment/publicsquare_payments/dynamic_descriptor_merchant_contact';
+    const PUBLICSQUARE_REQUIRE_CVV_NEW_SHIPPING_ADDRESS = 'payment/publicsquare_payments/require_cvv_new_shipping_address';
 
     /**
      * @var \Magento\Framework\Serialize\Serializer\Json
@@ -191,6 +192,22 @@ class Config extends AbstractHelper implements ICardInputCustomizationJSON
         return (bool)$this->scopeConfig
             ->getValue(self::PUBLICSQUARE_CUSTOMER_LOOKUP, $scopeType, $scopeCode);
     } //end getGuestCheckoutCustomerLookup()
+
+    /**
+     * Whether a saved card shipping to a new address must have its CVV re-entered
+     *
+     * @param string $scopeType
+     * @param null $scopeCode
+     * @return boolean
+     */
+    public function isCvvRecollectionEnabled(
+        $scopeType = \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+        $scopeCode = null,
+    ): bool
+    {
+        return (bool)$this->scopeConfig
+            ->getValue(self::PUBLICSQUARE_REQUIRE_CVV_NEW_SHIPPING_ADDRESS, $scopeType, $scopeCode);
+    } //end isCvvRecollectionEnabled()
 
     /**
      * Get publicsquare payment capture action
