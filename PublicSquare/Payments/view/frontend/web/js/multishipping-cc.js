@@ -6,14 +6,14 @@ define(['jquery', 'PublicSquare_Payments/js/publicsquare_payments'], function ($
   'use strict';
 
   return function (config) {
-    var code = config.code;
-    var selector = '#publicsquare-elements-form';
-    var apiKey = config.publicKey;
+    const code = config.code;
+    const selector = '#publicsquare-elements-form';
+    const apiKey = config.publicKey;
     const cardInputCustomization = JSON.parse(config.cardInputCustomization || '{}');
 
     function generateIdempotencyKey() {
-      var timestamp = Date.now().toString();
-      var random = Math.random().toString(36).substr(2, 9);
+      const timestamp = Date.now().toString();
+      const random = Math.random().toString(36).substr(2, 9);
       return timestamp + random;
     }
 
@@ -40,7 +40,7 @@ define(['jquery', 'PublicSquare_Payments/js/publicsquare_payments'], function ($
 
     $(function () {
       // ensure idempotency key exists on load
-      var $idem = $('#' + code + '_idempotency_key');
+      const $idem = $('#' + code + '_idempotency_key');
       if (!$idem.val()) {
         $idem.val(generateIdempotencyKey());
       }
@@ -58,7 +58,7 @@ define(['jquery', 'PublicSquare_Payments/js/publicsquare_payments'], function ($
 
       // Adding this as there are some edge cases where going back doesn't successfully mount keeping it disabled
       $(document).on('click', '#' + code + '_cardholder_name', function (e) {
-        var $el = $(this);
+        const $el = $(this);
         if ($el.prop('disabled')) {
           // Remove disabled so it becomes enabled
           $el.prop('disabled', false);
@@ -77,32 +77,32 @@ define(['jquery', 'PublicSquare_Payments/js/publicsquare_payments'], function ($
       });
 
       // Intercept submit to tokenize and set hidden fields
-      var $form = $('#multishipping-billing-form');
+      const $form = $('#multishipping-billing-form');
       $form.on('submit.publicsquare', async function (e) {
         // If method radios exist, only intercept when our method is selected
-        var method = $('input[name="payment[method]"]:checked').val();
+        const method = $('input[name="payment[method]"]:checked').val();
         if (method && method !== 'publicsquare_payments') {
           return;
         }
 
         e.preventDefault();
         try {
-          var card = window.publicsquare && window.publicsquare.cardElement;
+          let card = window.publicsquare && window.publicsquare.cardElement;
           if (!card) {
             mount();
             card = window.publicsquare && window.publicsquare.cardElement;
           }
           // Read cardholder name from input
-          var cardholderName = ($('#' + code + '_cardholder_name').val() || '').trim();
+          const cardholderName = ($('#' + code + '_cardholder_name').val() || '').trim();
           // regenerate idempotency key on each submit attempt
           $('#' + code + '_idempotency_key').val(generateIdempotencyKey());
-          var res = await window.publicsquare.createCard(cardholderName, card);
+          const res = await window.publicsquare.createCard(cardholderName, card);
           if (res.id) {
             $('#' + code + '_card_id').val(res.id);
           }
           $form.off('submit.publicsquare').trigger('submit');
         } catch (err) {
-          var msg = (err && err.message) || 'Error saving card.';
+          const msg = (err && err.message) || 'Error saving card.';
           $('#publicsquare_error_message').text(msg).show();
         }
       });

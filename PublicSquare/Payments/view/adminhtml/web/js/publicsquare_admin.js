@@ -1,11 +1,11 @@
 define(['jquery', 'publicsquare_payments'], function ($, publicsquare) {
-  let config = {},
-    firstNameSelector = '#order-billing_address_firstname',
-    lastNameSelector = '#order-billing_address_lastname',
-    elementsFormSelector = '#publicsquare-elements-form',
-    paymentMethodNonceSelector = '#publicsquare_payments_payment_method_nonce',
-    element = $(elementsFormSelector),
-    originalOrderSubmit;
+  const firstNameSelector = '#order-billing_address_firstname';
+  const lastNameSelector = '#order-billing_address_lastname';
+  const elementsFormSelector = '#publicsquare-elements-form';
+  const paymentMethodNonceSelector = '#publicsquare_payments_payment_method_nonce';
+  let config = {};
+  let element = $(elementsFormSelector);
+  let originalOrderSubmit;
 
   async function onSubmit() {
     const $form = $('#edit_form');
