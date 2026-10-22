@@ -47,12 +47,12 @@ bin/magento cache:flush
 
 ## Subscription Renewals
 
-A subscription module that places renewal orders with a saved PublicSquare card should mark each renewal. The
-payment then goes to PublicSquare as a recurring charge of the subscription's first payment, with no shopper
-present. Rules for shopper checkouts, such as asking for the card security code again, don't apply to it.
+If your subscription module places renewal orders with a saved PublicSquare card, mark each renewal before you place
+it. PublicSquare then charges it as a recurring payment linked to the subscription's first payment. Checks meant for a
+shopper at checkout, such as re-entering the card security code, don't apply to it.
 
-Inject `PublicSquare\Payments\Model\SubscriptionRenewal`. After you set the quote's payment, and before you place
-the order, call `markAsRenewal()`:
+Inject `PublicSquare\Payments\Model\SubscriptionRenewal`, and call `markAsRenewal()` after you set the quote's
+payment and before you place the order:
 
 ```php
 // $initialOrder is the order that started the subscription, paid through PublicSquare.
@@ -62,29 +62,33 @@ $quote->getPayment()->importData(['method' => 'publicsquare_payments_cc_vault', 
 try {
     $this->subscriptionRenewal->markAsRenewal($quote, $initialOrder);
 } catch (\Magento\Framework\Exception\LocalizedException $e) {
-    // Not a recurring payment of $initialOrder: place the renewal as a one-off payment instead.
+    // It can't continue $initialOrder's recurring payments, so place it as a one-off payment instead.
     $this->logger->warning($e->getMessage());
 }
 $order = $this->cartManagement->submit($quote);
 ```
 
-`markAsRenewal()` saves the quote with the mark, so the order can be placed in another process, such as a queue
-consumer. Setting the quote's payment again removes the mark.
+`markAsRenewal()` saves the mark on the quote, so you can place the order in another process, such as a queue
+consumer. Setting the quote's payment again removes the mark, so call `markAsRenewal()` after the last time you set
+it.
 
-Pass the subscription's first order paid with the card the renewal charges. `markAsRenewal()` throws a
+Pass the subscription's first order that was paid with the same card as the renewal. `markAsRenewal()` throws a
 `LocalizedException`, and leaves the quote unmarked, when:
 
-* the initial order has no PublicSquare payment, for example a subscription started with another payment method;
-* the quote's payment isn't set to a PublicSquare card;
-* the renewal charges another card than the initial order, for example after the subscriber replaced their card.
+* the initial order wasn't paid through PublicSquare, for example when the subscription started with another payment
+  method;
+* the quote's payment isn't a PublicSquare card;
+* the renewal uses a different card than the initial order, for example after the subscriber replaced their card.
 
-Catch the exception and place the renewal anyway, as the example does: without the mark, it goes as a one-off
-payment, the same as a shopper's payment with a saved card. If the order ships to an address the card hasn't used
-before, PublicSquare can reject that payment for a missing card security code. A renewal of a replaced card can then
-start a new series: pass its order as the initial order of later renewals.
+In these cases, catch the exception and place the order anyway, as the example does. The renewal is then charged as a
+one-off payment, like a shopper paying with a saved card. If it ships to an address the card hasn't shipped to
+before, PublicSquare may reject it for a missing card security code.
 
-Recurring payments are supported for merchant accounts on Nuvei. Accounts on Moov also need the first order sent as
-an initial recurring payment, which the plugin doesn't do yet.
+When a subscriber replaces their card, the first renewal on the new card starts a new series. Pass that renewal's
+order as the initial order for later renewals.
+
+Not every PublicSquare merchant account supports recurring payments yet. Check with PublicSquare before you mark
+renewals.
 
 ## Development
 
