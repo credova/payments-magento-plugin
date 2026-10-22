@@ -1,6 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "ignorePatterns": ["magento-install/**", "vendor/**"],
+  "rules": {
+    "no-var": "error",
+    "prefer-const": "error"
+  },
   "overrides": [
     {
       // Magento reads the global `config` that each requirejs-config.js declares.

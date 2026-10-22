@@ -141,7 +141,7 @@ define([
       if (customer.isLoggedIn()) {
         console.log('publicsquare_payments-method: Customer is logged in');
         if (quote.getItems().every((_) => _.product_type === 'virtual')) {
-          let billingAddress = quote.billingAddress();
+          const billingAddress = quote.billingAddress();
 
           console.log('publicsquare_payments-method: Found address on quote! %o', billingAddress);
           placeOrderReqBody.billingAddress = billingAddress;
