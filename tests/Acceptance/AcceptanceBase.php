@@ -373,10 +373,7 @@ class AcceptanceBase
         $I->waitForElementVisible('#checkout-step-payment', 30);
     }
 
-    /**
-     * Ships a logged-in customer's cart to an address that is not in their address book, then goes to payment.
-     * The address is not saved, so a later checkout must enter it again to reuse it.
-     */
+    /** Ships to a new address without saving it to the address book, then goes to payment. */
     protected function _goToCheckoutWithNewShippingAddress(AcceptanceTester $I, array $address)
     {
         $I->amOnPage('/checkout');

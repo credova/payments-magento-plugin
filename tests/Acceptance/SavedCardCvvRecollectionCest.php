@@ -4,15 +4,7 @@ namespace Tests\Acceptance;
 
 use Tests\Support\AcceptanceTester;
 
-/**
- * "Require CVV for New Shipping Addresses": checkout asks for a saved card's CVV again when the card has an earlier
- * successful payment but none that shipped to this address, matching PublicSquare's card security code rule. Each
- * test ships to a new, unique address, so earlier runs don't make it known.
- *
- * The default tests pass with or without the rule on the PublicSquare account. The psq-rule group needs the rule
- * (or the dev simulator), because it checks what happens when PublicSquare rejects the payment:
- * vendor/bin/codecept run tests/Acceptance/SavedCardCvvRecollectionCest.php -g psq-rule
- */
+/** Saved-card CVV re-entry at checkout. See tests/AGENTS.md for the psq-rule group. */
 class SavedCardCvvRecollectionCest extends AcceptanceBase
 {
     const SETTING_PATH = 'payment/publicsquare_payments/require_cvv_new_shipping_address';
@@ -164,7 +156,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         $this->_waitForCheckoutResult($I, 'Thank you for your purchase!');
     }
 
-    /** The CVV check only applies to PublicSquare saved cards. Another payment method places its order as before. */
+    /** Other payment methods are unaffected. */
     public function leavesOtherPaymentMethodsAlone(AcceptanceTester $I)
     {
         $this->_addProductToCart($I);
@@ -185,8 +177,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
     }
 
     /**
-     * A client can post the order without the checkout page. PublicSquare's rule rejects a saved card for a new
-     * address without a fresh CVV, and the plugin passes that on as "re-enter your security code".
+     * A REST order that skips the CVV prompt is rejected with "re-enter your security code".
      *
      * @group psq-rule
      */
@@ -198,7 +189,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         $this->_addProductToCart($I);
         $this->_goToCheckoutWithNewShippingAddress($I, $this->_uniqueAddress());
         $response = $I->executeAsyncJS(
-            'var done = arguments[arguments.length - 1];
+            'const done = arguments[arguments.length - 1];
             fetch("/rest/default/V1/carts/mine/payment-information", {
                 method: "POST",
                 credentials: "same-origin",
@@ -219,8 +210,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
     }
 
     /**
-     * With the setting off, checkout doesn't ask up front. PublicSquare's rule rejects the payment; checkout then
-     * shows the CVV field, and the retry with the CVV goes through.
+     * With the setting off, PublicSquare rejects first; checkout then asks for the CVV and the retry goes through.
      *
      * @group psq-rule
      */
@@ -268,10 +258,7 @@ class SavedCardCvvRecollectionCest extends AcceptanceBase
         return (int) $I->grabFromDatabase('customer_entity', 'entity_id', ['email' => self::CUSTOMER_EMAIL]);
     }
 
-    /**
-     * The public hash of a saved 4242 card that has an earlier PSQ payment, which is what makes checkout ask for its
-     * CVV on a new address. Pays with a new card and saves it when the customer has none.
-     */
+    /** Public hash of a saved 4242 card with an earlier payment, paying with a new card first if there's none. */
     private function _ensureSavedCardWithAPayment(AcceptanceTester $I): string
     {
         $statement = $I->getDbh()->prepare(
