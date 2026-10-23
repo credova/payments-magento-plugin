@@ -21,6 +21,8 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
 {
     const PATH = "payments";
 
+    private const RECURRING_TYPE_SUBSEQUENT = "subsequent";
+
     /**
      * @var array
      */
@@ -45,6 +47,7 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         $idempotencyKey = null,
         $externalId = "",
         $deviceInformation = null,
+        ?string $initialPaymentId = null,
     ) {
         parent::__construct($clientFactory, $configHelper, $logger);
         if ($idempotencyKey) {
@@ -115,6 +118,12 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
         }
         if ($deviceInformation) {
             $this->requestData['device_information'] = $deviceInformation;
+        }
+        if ($initialPaymentId) {
+            $this->requestData['recurring'] = [
+                "type" => self::RECURRING_TYPE_SUBSEQUENT,
+                "initial_payment_id" => $initialPaymentId,
+            ];
         }
     } //end __construct()
 

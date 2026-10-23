@@ -9,6 +9,7 @@ use Magento\Framework\Event\Observer;
 use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Payment\Gateway\Command\CommandException;
 use Magento\Payment\Gateway\Data\PaymentDataObjectInterface;
+use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Quote\Model\QuoteRepository;
 use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
@@ -33,6 +34,7 @@ use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 /**
  * PaymentExecutor runs every money step: authorize, capture, cancel, the cancel or refund when an order fails to
@@ -58,6 +60,7 @@ class PaymentExecutorTest extends TestCase
     private PaymentTokenManagementInterface $tokenManagement;
     private EncryptorInterface $encryptor;
     private CvvRequestedByPublicSquare $cvvRequests;
+    private SubscriptionRenewal $subscriptionRenewal;
 
     protected function setUp(): void
     {
@@ -74,6 +77,11 @@ class PaymentExecutorTest extends TestCase
         $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
+        $this->subscriptionRenewal = new SubscriptionRenewal(
+            $this->createMock(CartRepositoryInterface::class),
+            $this->tokenManagement,
+            $this->logger,
+        );
     }
 
     // ---- Create the payment (authorize, or authorize and capture) ----
@@ -102,7 +110,37 @@ class PaymentExecutorTest extends TestCase
             'billingAddress' => $billing,
             'externalId' => '100000123',
             'deviceInformation' => ['ip_address' => '203.0.113.7'],
+            'initialPaymentId' => null,
         ], $request->data);
+    }
+
+    public static function renewals(): array
+    {
+        return [
+            'of the initial card, as recurring' => ['card_1', 'pmt_first', null],
+            'of a card changed after the mark, as a one-off' => [
+                'card_replacement',
+                null,
+                'PSQ renewal uses another card than its initial payment; sent as one-off',
+            ],
+        ];
+    }
+
+    #[DataProvider('renewals')]
+    public function testSendsARenewal(string $cardId, ?string $initialPaymentId, ?string $warning): void
+    {
+        [$payment] = $this->checkoutPayment([
+            'cardId' => $cardId,
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1'],
+        ]);
+        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+
+        $this->executor()->executeAuthorizeCapture($this->subject($payment));
+
+        $this->assertSame($initialPaymentId, $request->data['initialPaymentId']);
+        // The device of the request that placed the renewal, as for any order: none from cron or a queue consumer.
+        $this->assertSame(['ip_address' => '203.0.113.7'], $request->data['deviceInformation']);
+        $this->assertSame($warning, $this->logger->lastMessage('warning'));
     }
 
     public function testUsesTheBillingEmailAndNoShippingForAGuestVirtualCart(): void
@@ -398,7 +436,7 @@ class PaymentExecutorTest extends TestCase
             $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger, $this->transactions,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
-            $remoteAddress, $this->cvvRequests,
+            $remoteAddress, $this->cvvRequests, $this->subscriptionRenewal,
         );
     }
 
