@@ -7,12 +7,12 @@ use Magento\Payment\Model\InfoInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Quote\Model\Quote;
 use Magento\Sales\Api\Data\OrderInterface;
-use Magento\Vault\Api\PaymentTokenManagementInterface;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Logger\Logger;
 
 /**
  * Marks a cart as a subscription renewal, so PublicSquare charges it as a recurring payment of the first order.
- * QuotePaymentPlugin stops clients from setting the mark themselves.
+ * QuotePaymentPlugin stops storefront and web API clients from setting the mark themselves.
  */
 class SubscriptionRenewal
 {
@@ -25,9 +25,9 @@ class SubscriptionRenewal
     private $quoteRepository;
 
     /**
-     * @var PaymentTokenManagementInterface
+     * @var CardResolver
      */
-    private $tokenManagement;
+    private $cardResolver;
 
     /**
      * @var Logger
@@ -36,11 +36,11 @@ class SubscriptionRenewal
 
     public function __construct(
         CartRepositoryInterface $quoteRepository,
-        PaymentTokenManagementInterface $tokenManagement,
+        CardResolver $cardResolver,
         Logger $logger
     ) {
         $this->quoteRepository = $quoteRepository;
-        $this->tokenManagement = $tokenManagement;
+        $this->cardResolver = $cardResolver;
         $this->logger = $logger;
     }
 
@@ -59,7 +59,7 @@ class SubscriptionRenewal
         if (!str_starts_with($paymentId, 'pmt_') || !$cardId) {
             throw new LocalizedException(
                 __(
-                    'Order %1 was not paid through PublicSquare, so it can\'t start a recurring payment.',
+                    'This renewal can\'t be linked to order %1, which wasn\'t paid through PublicSquare.',
                     $initialOrder->getIncrementId()
                 )
             );
@@ -67,21 +67,27 @@ class SubscriptionRenewal
         $renewalCardId = $this->getRenewalCardId($quote);
         if (!$renewalCardId) {
             throw new LocalizedException(
-                __('Set the quote\'s PublicSquare payment before marking it as a subscription renewal.')
+                __(
+                    'This renewal can\'t be linked to order %1, because its payment isn\'t an active PublicSquare card.',
+                    $initialOrder->getIncrementId()
+                )
             );
         }
         if ($renewalCardId !== $cardId) {
             throw new LocalizedException(
                 __(
-                    'The renewal charges another card than order %1, so it can\'t continue its recurring payment.',
+                    'This renewal can\'t be linked to order %1, which was paid with a different card.',
                     $initialOrder->getIncrementId()
                 )
             );
         }
-        $quote->getPayment()->setAdditionalInformation(
+        $quotePayment = $quote->getPayment();
+        $quotePayment->setAdditionalInformation(
             self::INITIAL_PAYMENT_KEY,
             ['paymentId' => $paymentId, 'cardId' => $cardId]
         );
+        // One key per marked attempt: a redelivered queue message reuses it, so PublicSquare doesn't charge twice.
+        $quotePayment->setAdditionalInformation('idempotencyKey', bin2hex(random_bytes(16)));
         $this->quoteRepository->save($quote);
     }
 
@@ -89,11 +95,11 @@ class SubscriptionRenewal
     public function getInitialPaymentId(InfoInterface $payment, string $cardId): ?string
     {
         $initialPayment = $payment->getAdditionalInformation(self::INITIAL_PAYMENT_KEY);
-        if (!$initialPayment) {
+        if (!is_array($initialPayment) || empty($initialPayment['paymentId'])) {
             return null;
         }
-        if ($initialPayment['cardId'] !== $cardId) {
-            $this->logger->warning('PSQ renewal uses another card than its initial payment; sent as one-off', [
+        if (($initialPayment['cardId'] ?? null) !== $cardId) {
+            $this->logger->warning('PSQ renewal charged as a one-off: its card differs from the initial payment', [
                 'initialPaymentId' => $initialPayment['paymentId'],
             ]);
             return null;
@@ -101,17 +107,12 @@ class SubscriptionRenewal
         return $initialPayment['paymentId'];
     }
 
-    // Finds the card the same way CaptureCommand does.
     private function getRenewalCardId(Quote $quote): ?string
     {
         $payment = $quote->getPayment();
-        if ($nonce = $payment->getAdditionalInformation('payment_method_nonce')) {
-            return $nonce;
+        if (!in_array($payment->getMethod(), [Config::CODE, Config::VAULT_CODE], true)) {
+            return null;
         }
-        if ($publicHash = $payment->getAdditionalInformation('public_hash')) {
-            $token = $this->tokenManagement->getByPublicHash($publicHash, $quote->getCustomerId());
-            return $token ? (string) $token->getGatewayToken() : null;
-        }
-        return $payment->getAdditionalInformation('cardId') ?: null;
+        return $this->cardResolver->getCardId($payment, $quote->getCustomerId());
     }
 }

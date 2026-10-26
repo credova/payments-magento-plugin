@@ -72,12 +72,20 @@ $order = $this->cartManagement->submit($quote);
 consumer. Setting the quote's payment again removes the mark, so call `markAsRenewal()` after the last time you set
 it.
 
+Call `markAsRenewal()` once for each attempt to charge the renewal, before you queue it. Each call gives the payment a
+new idempotency key. If the same attempt is placed twice, for example when a queue message is redelivered,
+PublicSquare doesn't charge the card twice. To retry a declined renewal, mark the quote again so the retry gets a new
+key.
+
+If PublicSquare rejects the recurring payment, `submit()` fails as it does for a declined card. The order isn't
+retried as a one-off payment.
+
 Pass the subscription's first order that was paid with the same card as the renewal. `markAsRenewal()` throws a
 `LocalizedException`, and leaves the quote unmarked, when:
 
 * the initial order wasn't paid through PublicSquare, for example when the subscription started with another payment
   method;
-* the quote's payment isn't a PublicSquare card;
+* the quote's payment isn't a PublicSquare card, or is a saved card the customer deleted;
 * the renewal uses a different card than the initial order, for example after the subscriber replaced their card.
 
 In these cases, catch the exception and place the order anyway, as the example does. The renewal is then charged as a

@@ -5,6 +5,7 @@ namespace PublicSquare\Payments\Gateway\Command;
 use Magento\Payment\Gateway\CommandInterface;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Model\CardResolver;
 
 class CaptureCommand implements CommandInterface
 {
@@ -18,31 +19,29 @@ class CaptureCommand implements CommandInterface
      */
     private $paymentExecutor;
 
+    /**
+     * @var CardResolver
+     */
+    private $cardResolver;
+
     public function __construct(
         Logger $logger,
-        PaymentExecutor $paymentExecutor
+        PaymentExecutor $paymentExecutor,
+        CardResolver $cardResolver
     ) {
         $this->logger = $logger;
         $this->paymentExecutor = $paymentExecutor;
+        $this->cardResolver = $cardResolver;
     }
 
     public function execute(array $commandSubject)
     {
         $payment = $commandSubject['payment']->getPayment();
-        if ($card_id = $payment->getAdditionalInformation('payment_method_nonce')) {
-            // Get payment methon nonce, which is the card id
-            $payment->setAdditionalInformation('cardId', $card_id);
-        } else if ($public_hash = $payment->getAdditionalInformation('public_hash')) {
-            // Saved payment method
-            $customerId = $payment->getOrder()->getCustomerId();
-            if (!$customerId) {
-                $this->paymentExecutor->throwUserFriendlyException(new \Exception('Customer not found'));
-            }
-            $card_id = $this->paymentExecutor->getCardIdFromPublicHash($public_hash, $customerId);
-            if (!$card_id) {
-                $this->paymentExecutor->throwUserFriendlyException(new \Exception('Card not found'));
-            }
-            $payment->setAdditionalInformation('cardId', $card_id);
+        $cardId = $this->cardResolver->getCardId($payment, $payment->getOrder()->getCustomerId());
+        if ($cardId) {
+            $payment->setAdditionalInformation('cardId', $cardId);
+        } elseif ($payment->getAdditionalInformation('public_hash')) {
+            $this->paymentExecutor->throwUserFriendlyException(new \Exception('Card not found'));
         }
 
         if ($commandSubject["amount"] > 0) {

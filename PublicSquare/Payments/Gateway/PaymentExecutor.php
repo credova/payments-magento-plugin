@@ -21,7 +21,6 @@ use Magento\Vault\Model\CreditCardTokenFactory;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Vault\Api\PaymentTokenRepositoryInterface;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
-use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Helper\Config;
@@ -75,11 +74,6 @@ class PaymentExecutor
     protected $paymentTokenRepository;
 
     /**
-     * @var PaymentTokenManagementInterface
-     */
-    protected $tokenManagement;
-
-    /**
      * @var EncryptorInterface
      */
     protected $encryptor;
@@ -120,7 +114,6 @@ class PaymentExecutor
         CreditCardTokenFactory $creditCardTokenFactory,
         StoreManagerInterface $storeManager,
         PaymentTokenRepositoryInterface $paymentTokenRepository,
-        PaymentTokenManagementInterface $tokenManagement,
         EncryptorInterface $encryptor,
         Logger $logger,
         TransactionRepositoryInterface $transactionRepository,
@@ -137,7 +130,6 @@ class PaymentExecutor
         $this->creditCardTokenFactory = $creditCardTokenFactory;
         $this->storeManager = $storeManager;
         $this->paymentTokenRepository = $paymentTokenRepository;
-        $this->tokenManagement = $tokenManagement;
         $this->encryptor = $encryptor;
         $this->logger = $logger->withName('PSQ:PaymentExecutor');
         $this->transactionRepository = $transactionRepository;
@@ -587,24 +579,6 @@ class PaymentExecutor
             json_encode($paymentToken->getTokenDetails());
 
         return $this->encryptor->getHash($hashKey);
-    }
-
-    public function getCardIdFromPublicHash($publicHash, $customerId): string
-    {
-        $paymentToken = $this->tokenManagement->getByPublicHash(
-            $publicHash,
-            $customerId
-        );
-        // Null for an unknown hash or another customer's. The caller turns '' into "Card not found".
-        if (!$paymentToken) {
-            return '';
-        }
-        // Deleting a card in My Account only deactivates its token, so an old public hash still finds it.
-        if (!$paymentToken->getIsActive()) {
-            $this->logger->info('Saved card refused: the customer deleted it', ['customer_id' => $customerId]);
-            return '';
-        }
-        return (string) $paymentToken->getGatewayToken();
     }
 
     public function throwUserFriendlyException(\Exception $e)

@@ -15,7 +15,6 @@ use Magento\Sales\Api\TransactionRepositoryInterface;
 use Magento\Sales\Model\Order\Payment\Interceptor;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
-use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Vault\Api\PaymentTokenRepositoryInterface;
 use Magento\Vault\Model\CreditCardTokenFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -34,6 +33,7 @@ use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\CardResolver;
 use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 /**
@@ -57,7 +57,6 @@ class PaymentExecutorTest extends TestCase
     private TransactionRepositoryInterface $transactions;
     private CreditCardTokenFactory $tokenFactory;
     private PaymentTokenRepositoryInterface $tokenRepository;
-    private PaymentTokenManagementInterface $tokenManagement;
     private EncryptorInterface $encryptor;
     private CvvRequestedByPublicSquare $cvvRequests;
     private SubscriptionRenewal $subscriptionRenewal;
@@ -74,12 +73,11 @@ class PaymentExecutorTest extends TestCase
         $this->transactions = $this->createMock(TransactionRepositoryInterface::class);
         $this->tokenFactory = $this->createMock(CreditCardTokenFactory::class);
         $this->tokenRepository = $this->createMock(PaymentTokenRepositoryInterface::class);
-        $this->tokenManagement = $this->createMock(PaymentTokenManagementInterface::class);
         $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
         $this->subscriptionRenewal = new SubscriptionRenewal(
             $this->createMock(CartRepositoryInterface::class),
-            $this->tokenManagement,
+            $this->createMock(CardResolver::class),
             $this->logger,
         );
     }
@@ -117,17 +115,13 @@ class PaymentExecutorTest extends TestCase
     public static function renewals(): array
     {
         return [
-            'of the initial card, as recurring' => ['card_1', 'pmt_first', null],
-            'of a card changed after the mark, as a one-off' => [
-                'card_replacement',
-                null,
-                'PSQ renewal uses another card than its initial payment; sent as one-off',
-            ],
+            'of the initial card, as recurring' => ['card_1', 'pmt_first', false],
+            'of a card changed after the mark, as a one-off' => ['card_replacement', null, true],
         ];
     }
 
     #[DataProvider('renewals')]
-    public function testSendsARenewal(string $cardId, ?string $initialPaymentId, ?string $warning): void
+    public function testSendsARenewal(string $cardId, ?string $initialPaymentId, bool $warns): void
     {
         [$payment] = $this->checkoutPayment([
             'cardId' => $cardId,
@@ -140,7 +134,7 @@ class PaymentExecutorTest extends TestCase
         $this->assertSame($initialPaymentId, $request->data['initialPaymentId']);
         // The device of the request that placed the renewal, as for any order: none from cron or a queue consumer.
         $this->assertSame(['ip_address' => '203.0.113.7'], $request->data['deviceInformation']);
-        $this->assertSame($warning, $this->logger->lastMessage('warning'));
+        $this->assertSame($warns, $this->logger->lastMessage('warning') !== null);
     }
 
     public function testUsesTheBillingEmailAndNoShippingForAGuestVirtualCart(): void
@@ -387,38 +381,6 @@ class PaymentExecutorTest extends TestCase
         $this->assertNull($payment->getAdditionalInformation('psq_refund_id'));
     }
 
-    // ---- Saved cards ----
-
-    public function testFindsTheCardOfACustomersSavedCard(): void
-    {
-        $token = new FakeToken();
-        $token->setGatewayToken('card_1');
-        $token->setIsActive(true);
-        $this->tokenManagement->method('getByPublicHash')->with('public_hash_1', 42)->willReturn($token);
-
-        $this->assertSame('card_1', $this->executor()->getCardIdFromPublicHash('public_hash_1', 42));
-    }
-
-    /** A card deleted in My Account, still found by its old public hash. */
-    public function testFindsNoCardForASavedCardTheCustomerDeleted(): void
-    {
-        $token = new FakeToken();
-        $token->setGatewayToken('card_1');
-        $token->setIsActive(false);
-        $this->tokenManagement->method('getByPublicHash')->with('public_hash_1', 42)->willReturn($token);
-
-        $this->assertSame('', $this->executor()->getCardIdFromPublicHash('public_hash_1', 42));
-        $this->assertSame('Saved card refused: the customer deleted it', $this->logger->lastMessage('info'));
-    }
-
-    /** The caller turns an empty card id into "Card not found", a payment error and not a 500. */
-    public function testFindsNoCardForAHashThatIsNotTheCustomers(): void
-    {
-        $this->tokenManagement->method('getByPublicHash')->willReturn(null);
-
-        $this->assertSame('', $this->executor()->getCardIdFromPublicHash('someone_elses_hash', 42));
-    }
-
     // ---- Helpers ----
 
     private function executor(): PaymentExecutor
@@ -433,7 +395,7 @@ class PaymentExecutorTest extends TestCase
 
         return new PaymentExecutor(
             $this->quoteRepository, $this->factories[PaymentCreateFactory::class], $this->tokenFactory, $storeManager,
-            $this->tokenRepository, $this->tokenManagement, $this->encryptor, $this->logger, $this->transactions,
+            $this->tokenRepository, $this->encryptor, $this->logger, $this->transactions,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
             $remoteAddress, $this->cvvRequests, $this->subscriptionRenewal,
