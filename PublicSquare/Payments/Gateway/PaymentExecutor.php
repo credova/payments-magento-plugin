@@ -299,6 +299,11 @@ class PaymentExecutor
 
                     $payment->setIsTransactionClosed(1);
                 }
+                // A renewal placed again must charge the card again, not get this undone payment back.
+                $quote = $observer->getEvent()->getQuote();
+                if ($quote) {
+                    $this->subscriptionRenewal->startNewAttempt($quote);
+                }
             }
         } catch (\Exception $e) {
             $this->logger->error("Update from observer failed", [
@@ -425,6 +430,14 @@ class PaymentExecutor
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
                 $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($payment, $cardId);
+                if ($initialPaymentId !== null) {
+                    $placed = $this->subscriptionRenewal->getPlacedOrderIncrementId($payment, $order->getCustomerId());
+                    if ($placed !== null) {
+                        throw new \Magento\Framework\Exception\LocalizedException(
+                            __('This renewal was already placed as order %1.', $placed)
+                        );
+                    }
+                }
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),

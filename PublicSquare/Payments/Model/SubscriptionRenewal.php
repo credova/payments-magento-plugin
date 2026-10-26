@@ -2,6 +2,7 @@
 
 namespace PublicSquare\Payments\Model;
 
+use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Payment\Model\InfoInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
@@ -34,14 +35,21 @@ class SubscriptionRenewal
      */
     private $logger;
 
+    /**
+     * @var ResourceConnection
+     */
+    private $resourceConnection;
+
     public function __construct(
         CartRepositoryInterface $quoteRepository,
         CardResolver $cardResolver,
-        Logger $logger
+        Logger $logger,
+        ResourceConnection $resourceConnection
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->cardResolver = $cardResolver;
         $this->logger = $logger;
+        $this->resourceConnection = $resourceConnection;
     }
 
     /**
@@ -87,8 +95,56 @@ class SubscriptionRenewal
             ['paymentId' => $paymentId, 'cardId' => $cardId]
         );
         // One key per marked attempt: a redelivered queue message reuses it, so PublicSquare doesn't charge twice.
-        $quotePayment->setAdditionalInformation('idempotencyKey', bin2hex(random_bytes(16)));
+        $quotePayment->setAdditionalInformation('idempotencyKey', $this->newIdempotencyKey());
         $this->quoteRepository->save($quote);
+    }
+
+    /**
+     * Gives a marked quote a new idempotency key after its payment was cancelled or refunded, so placing it again
+     * charges the card instead of getting the undone payment back from PublicSquare.
+     */
+    public function startNewAttempt(Quote $quote): void
+    {
+        $payment = $quote->getPayment();
+        if (!is_array($payment->getAdditionalInformation(self::INITIAL_PAYMENT_KEY))) {
+            return;
+        }
+        $payment->setAdditionalInformation('idempotencyKey', $this->newIdempotencyKey());
+        $this->quoteRepository->save($quote);
+    }
+
+    /**
+     * The increment ID of the order already placed for this marked attempt, or null. PublicSquare returns the
+     * attempt's first payment instead of charging again, so placing it again would make a second order for it.
+     *
+     * @param int|string|null $customerId
+     */
+    public function getPlacedOrderIncrementId(InfoInterface $payment, $customerId): ?string
+    {
+        $key = (string) $payment->getAdditionalInformation('idempotencyKey');
+        if ($key === '' || !$customerId) {
+            return null;
+        }
+        $keyJson = substr((string) json_encode(['idempotencyKey' => $key]), 1, -1);
+        $connection = $this->resourceConnection->getConnection();
+        $select = $connection->select()
+            ->from(['o' => $this->resourceConnection->getTableName('sales_order')], ['increment_id'])
+            ->join(
+                ['p' => $this->resourceConnection->getTableName('sales_order_payment')],
+                'p.parent_id = o.entity_id',
+                ['additional_information']
+            )
+            ->where('o.customer_id = ?', (int) $customerId)
+            ->where('p.additional_information LIKE ?', '%' . addcslashes($keyJson, '\\%_') . '%');
+        foreach ($connection->fetchAll($select) as $row) {
+            $info = json_decode((string) $row['additional_information'], true);
+            if (is_array($info) && ($info['idempotencyKey'] ?? null) === $key
+                && is_array($info[self::INITIAL_PAYMENT_KEY] ?? null)
+            ) {
+                return (string) $row['increment_id'];
+            }
+        }
+        return null;
     }
 
     /** The payment this renews, or null if it isn't a renewal or now charges a different card. */
@@ -105,6 +161,11 @@ class SubscriptionRenewal
             return null;
         }
         return $initialPayment['paymentId'];
+    }
+
+    private function newIdempotencyKey(): string
+    {
+        return bin2hex(random_bytes(16));
     }
 
     private function getRenewalCardId(Quote $quote): ?string

@@ -61,6 +61,14 @@ class PaymentCreateTest extends TestCase
         $this->assertSame(substr(hash('sha256', $hashInput), 0, 50), $this->client->headers['IDEMPOTENCY-KEY']);
     }
 
+    public function testLeavesTheOrderIdOutOfARenewalsKey(): void
+    {
+        $this->paymentCreate(['initialPaymentId' => 'pmt_first'])->getResponseData();
+
+        $hashInput = '1700000000000abc-jane@example.com-authorize';
+        $this->assertSame(substr(hash('sha256', $hashInput), 0, 50), $this->client->headers['IDEMPOTENCY-KEY']);
+    }
+
     public function testSendsNoIdempotencyKeyWhenCheckoutGaveNone(): void
     {
         $this->paymentCreate(['idempotencyKey' => null])->getResponseData();
