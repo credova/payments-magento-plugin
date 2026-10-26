@@ -2,7 +2,9 @@
 
 namespace Magento\Quote\Model;
 
-class Quote
+use Magento\Quote\Api\Data\CartInterface;
+
+class Quote implements CartInterface
 {
     public function getId()
     {
@@ -22,5 +24,13 @@ class Quote
     public function getShippingAddress()
     {
         return null;
+    }
+
+    public function getCustomerId()
+    {
+    }
+
+    public function getPayment()
+    {
     }
 }

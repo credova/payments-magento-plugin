@@ -20,10 +20,11 @@ use Magento\Vault\Model\CreditCardTokenFactory;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Vault\Api\PaymentTokenRepositoryInterface;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
-use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Helper\Config;
+use PublicSquare\Payments\Model\CardResolver;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 class PaymentExecutor
 {
@@ -73,11 +74,6 @@ class PaymentExecutor
     protected $paymentTokenRepository;
 
     /**
-     * @var PaymentTokenManagementInterface
-     */
-    protected $tokenManagement;
-
-    /**
      * @var EncryptorInterface
      */
     protected $encryptor;
@@ -102,13 +98,22 @@ class PaymentExecutor
      */
     private $cvvRequests;
 
+    /**
+     * @var SubscriptionRenewal
+     */
+    private $subscriptionRenewal;
+
+    /**
+     * @var CardResolver
+     */
+    private $cardResolver;
+
     public function __construct(
         QuoteRepository $quoteRepository,
         PaymentCreateFactory $paymentCreateFactory,
         CreditCardTokenFactory $creditCardTokenFactory,
         StoreManagerInterface $storeManager,
         PaymentTokenRepositoryInterface $paymentTokenRepository,
-        PaymentTokenManagementInterface $tokenManagement,
         EncryptorInterface $encryptor,
         Logger $logger,
         PaymentCaptureFactory $paymentCaptureFactory,
@@ -116,14 +121,15 @@ class PaymentExecutor
         PaymentUpdateFactory $paymentUpdateFactory,
         PaymentRefundFactory $paymentRefundFactory,
         RemoteAddress $remoteAddress,
-        CvvRequestedByPublicSquare $cvvRequests
+        CvvRequestedByPublicSquare $cvvRequests,
+        SubscriptionRenewal $subscriptionRenewal,
+        CardResolver $cardResolver
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->paymentCreateFactory = $paymentCreateFactory;
         $this->creditCardTokenFactory = $creditCardTokenFactory;
         $this->storeManager = $storeManager;
         $this->paymentTokenRepository = $paymentTokenRepository;
-        $this->tokenManagement = $tokenManagement;
         $this->encryptor = $encryptor;
         $this->logger = $logger->withName('PSQ:PaymentExecutor');
         $this->paymentCaptureFactory = $paymentCaptureFactory;
@@ -132,6 +138,8 @@ class PaymentExecutor
         $this->paymentRefundFactory = $paymentRefundFactory;
         $this->remoteAddress = $remoteAddress;
         $this->cvvRequests = $cvvRequests;
+        $this->subscriptionRenewal = $subscriptionRenewal;
+        $this->cardResolver = $cardResolver;
     }
 
     public function setCommandSubject(array $commandSubject)
@@ -421,6 +429,7 @@ class PaymentExecutor
             }
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
+                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($payment, $cardId);
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),
@@ -432,6 +441,7 @@ class PaymentExecutor
                     "billingAddress" => $billingAddress,
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
                     "deviceInformation" => $this->getDeviceInformation(),
+                    "initialPaymentId" => $initialPaymentId,
                 ])->getResponseData();
                 $this->setPaymentFromPSQResponse($payment, $response);
             } else {
@@ -576,41 +586,22 @@ class PaymentExecutor
         return $this->encryptor->getHash($hashKey);
     }
 
-    public function getCardIdFromPublicHash($publicHash, $customerId): string
-    {
-        $paymentToken = $this->tokenManagement->getByPublicHash(
-            $publicHash,
-            $customerId
-        );
-        // Null for an unknown hash or another customer's. CaptureCommand turns '' into "Card not found".
-        return $paymentToken ? (string) $paymentToken->getGatewayToken() : '';
-    }
-
     /**
-     * Records the PSQ card to charge as cardId: the order customer's saved card for a public_hash (it replaces any card
-     * the client sent), or an admin order's payment_method_nonce. A new-card checkout already sent its cardId.
+     * Records the PSQ card to charge as cardId, for every new payment (authorize, capture, and the vault's
+     * authorize and sale): an admin order's card, the customer's saved card, or a card entered at checkout.
      *
      * @param \Magento\Sales\Model\Order\Payment $payment
      * @return void
+     * @throws \Exception When the payment uses a saved card that can't be charged
      */
     private function setCardToCharge($payment): void
     {
-        $publicHash = $payment->getAdditionalInformation('public_hash');
-        if (!$publicHash) {
-            if ($nonce = $payment->getAdditionalInformation('payment_method_nonce')) {
-                $payment->setAdditionalInformation('cardId', $nonce);
-            }
-            return;
-        }
-        $customerId = $payment->getOrder()->getCustomerId();
-        if (!$customerId) {
-            throw new \Exception('Customer not found');
-        }
-        $cardId = $this->getCardIdFromPublicHash((string) $publicHash, $customerId);
-        if (!$cardId) {
+        $cardId = $this->cardResolver->getCardId($payment, $payment->getOrder()->getCustomerId());
+        if ($cardId) {
+            $payment->setAdditionalInformation('cardId', $cardId);
+        } elseif ($payment->getAdditionalInformation('public_hash')) {
             throw new \Exception('Card not found');
         }
-        $payment->setAdditionalInformation('cardId', $cardId);
     }
 
     public function throwUserFriendlyException(\Exception $e)

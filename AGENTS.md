@@ -123,6 +123,18 @@ Follow PSR-12 for PHP standards. The codebase is mostly consistent; adhere to th
 - Static methods: Sparingly (e.g., utility functions).
 - Avoid inconsistencies: Match existing file styles.
 
+### Comments
+
+- At most a 1–2 line comment at the top of a file. The required PHP docblock tags above still apply.
+- Don't comment on what the code already makes obvious.
+- Add a 1–2 line inline comment only where the logic is critical or not obvious.
+- Tests follow the same rules. Put general testing context in the tests docs, not in a test's docblock.
+
+### JavaScript
+
+- Write modern JS for ES2020: `const` and `let`, never `var`. oxlint enforces `no-var` and `prefer-const`.
+- Magento loads these files as RequireJS modules without a build step, so don't add syntax newer than ES2020.
+
 ### Examples
 
 ```php

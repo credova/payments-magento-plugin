@@ -8,6 +8,7 @@ use Magento\Payment\Model\InfoInterface;
 class Payment implements InfoInterface
 {
     private array $additionalInformation = [];
+    private $method;
 
     public function getAdditionalInformation($key = null)
     {
@@ -15,6 +16,27 @@ class Payment implements InfoInterface
             return $this->additionalInformation;
         }
         return $this->additionalInformation[$key] ?? null;
+    }
+
+    public function unsAdditionalInformation($key = null)
+    {
+        if ($key === null) {
+            $this->additionalInformation = [];
+        } else {
+            unset($this->additionalInformation[$key]);
+        }
+        return $this;
+    }
+
+    public function getMethod()
+    {
+        return $this->method;
+    }
+
+    public function setMethod($method)
+    {
+        $this->method = $method;
+        return $this;
     }
 
     public function setAdditionalInformation($key, $value = null)
