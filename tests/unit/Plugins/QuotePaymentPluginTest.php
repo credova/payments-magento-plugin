@@ -6,6 +6,7 @@ use Magento\Quote\Model\Quote\Payment;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 use PublicSquare\Payments\Plugins\QuotePaymentPlugin;
 
 /**
@@ -39,6 +40,41 @@ class QuotePaymentPluginTest extends TestCase
 
         $this->assertSame($additionalData, $payment->getAdditionalInformation());
         $this->assertSame([$data], $result);
+    }
+
+    public function testDropsARenewalMarkAClientSends(): void
+    {
+        $payment = new Payment();
+        $data = ['method' => 'publicsquare_payments', 'additional_data' => [
+            'cardId' => 'card_1',
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_other', 'cardId' => 'card_1'],
+        ]];
+
+        (new QuotePaymentPlugin(new Logger()))->beforeImportData($payment, $data);
+
+        $this->assertSame(['cardId' => 'card_1'], $payment->getAdditionalInformation());
+    }
+
+    /** A renewal quote whose payment failed can become the shopper's cart, and checkout can set its payment again. */
+    public function testDropsTheRenewalMarkWhenAClientSetsThePaymentWithoutAdditionalData(): void
+    {
+        $payment = (new Payment())->setAdditionalInformation([
+            'public_hash' => 'hash_abc',
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1'],
+        ]);
+
+        (new QuotePaymentPlugin(new Logger()))->beforeImportData($payment, ['method' => 'publicsquare_payments_cc_vault']);
+
+        $this->assertSame(['public_hash' => 'hash_abc'], $payment->getAdditionalInformation());
+    }
+
+    public function testIgnoresAdditionalDataThatIsNotAnArray(): void
+    {
+        $payment = (new Payment())->setAdditionalInformation('method_title', 'PublicSquare');
+
+        (new QuotePaymentPlugin(new Logger()))->beforeImportData($payment, ['additional_data' => 'card_1']);
+
+        $this->assertSame(['method_title' => 'PublicSquare'], $payment->getAdditionalInformation());
     }
 
     public function testLeavesThePaymentAloneWithoutAdditionalData(): void
