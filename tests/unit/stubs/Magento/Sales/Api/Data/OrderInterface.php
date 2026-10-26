@@ -7,4 +7,5 @@ interface OrderInterface
 
     function getId(): ?int;
     function getPayment() ;
+    function getIncrementId();
 }

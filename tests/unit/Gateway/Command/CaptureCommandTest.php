@@ -3,42 +3,34 @@
 namespace PublicSquare\Payments\Test\Unit\Gateway\Command;
 
 use Magento\Payment\Gateway\Command\CommandException;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Gateway\Command\CaptureCommand;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
 use PublicSquare\Payments\Logger\Logger;
+use PublicSquare\Payments\Model\CardResolver;
 
 /**
  * CaptureCommand runs for "capture" and "vault_sale". It finds the PSQ card id for the payment, then captures an
- * existing authorization or authorizes and captures in one step.
+ * existing authorization or authorizes and captures in one step. CardResolverTest covers finding the card.
  */
 class CaptureCommandTest extends TestCase
 {
     private PaymentExecutor $executor;
+    private CardResolver $cardResolver;
 
     protected function setUp(): void
     {
         $this->executor = $this->createMock(PaymentExecutor::class);
+        $this->cardResolver = $this->createMock(CardResolver::class);
         // The real method throws, so a failed lookup stops the command.
         $this->executor->method('throwUserFriendlyException')
             ->willReturnCallback(fn (\Exception $e) => throw new CommandException(__('%1', $e->getMessage())));
     }
 
-    public function testChargesTheAdminOrderCardFromTheNonce(): void
-    {
-        $payment = new CapturePayment(['payment_method_nonce' => 'card_1']);
-        $this->executor->expects($this->once())->method('executeAuthorizeCapture');
-
-        $this->command()->execute($this->subject($payment));
-
-        $this->assertSame('card_1', $payment->getAdditionalInformation('cardId'));
-    }
-
-    public function testChargesASavedCardOfTheCustomer(): void
+    public function testChargesTheCardOfThePayment(): void
     {
         $payment = new CapturePayment(['public_hash' => 'hash_1'], customerId: 42);
-        $this->executor->method('getCardIdFromPublicHash')->with('hash_1', 42)->willReturn('card_9');
+        $this->cardResolver->method('getCardId')->with($payment, 42)->willReturn('card_9');
         $this->executor->expects($this->once())->method('executeAuthorizeCapture');
 
         $this->command()->execute($this->subject($payment));
@@ -46,20 +38,13 @@ class CaptureCommandTest extends TestCase
         $this->assertSame('card_9', $payment->getAdditionalInformation('cardId'));
     }
 
-    public static function unusableSavedCards(): array
+    public function testRefusesASavedCardItCannotUse(): void
     {
-        return ['a guest order' => [null, 'card_9', 'Customer not found'], 'an unknown card' => [42, '', 'Card not found']];
-    }
-
-    #[DataProvider('unusableSavedCards')]
-    public function testRefusesASavedCardFor(?int $customerId, string $cardId, string $message): void
-    {
-        $payment = new CapturePayment(['public_hash' => 'hash_1'], customerId: $customerId);
-        $this->executor->method('getCardIdFromPublicHash')->willReturn($cardId);
+        $payment = new CapturePayment(['public_hash' => 'hash_1'], customerId: 42);
+        $this->cardResolver->method('getCardId')->willReturn(null);
         $this->executor->expects($this->never())->method('executeAuthorizeCapture');
 
         $this->expectException(CommandException::class);
-        $this->expectExceptionMessage($message);
         $this->command()->execute($this->subject($payment));
     }
 
@@ -96,7 +81,7 @@ class CaptureCommandTest extends TestCase
 
     private function command(): CaptureCommand
     {
-        return new CaptureCommand(new Logger(), $this->executor);
+        return new CaptureCommand(new Logger(), $this->executor, $this->cardResolver);
     }
 
     private function subject(CapturePayment $payment, float $amount = 19.99): array

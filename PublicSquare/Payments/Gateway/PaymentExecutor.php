@@ -20,10 +20,10 @@ use Magento\Vault\Model\CreditCardTokenFactory;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Vault\Api\PaymentTokenRepositoryInterface;
 use Magento\Vault\Api\Data\PaymentTokenInterface;
-use Magento\Vault\Api\PaymentTokenManagementInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Helper\Config;
+use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 class PaymentExecutor
 {
@@ -73,11 +73,6 @@ class PaymentExecutor
     protected $paymentTokenRepository;
 
     /**
-     * @var PaymentTokenManagementInterface
-     */
-    protected $tokenManagement;
-
-    /**
      * @var EncryptorInterface
      */
     protected $encryptor;
@@ -102,13 +97,17 @@ class PaymentExecutor
      */
     private $cvvRequests;
 
+    /**
+     * @var SubscriptionRenewal
+     */
+    private $subscriptionRenewal;
+
     public function __construct(
         QuoteRepository $quoteRepository,
         PaymentCreateFactory $paymentCreateFactory,
         CreditCardTokenFactory $creditCardTokenFactory,
         StoreManagerInterface $storeManager,
         PaymentTokenRepositoryInterface $paymentTokenRepository,
-        PaymentTokenManagementInterface $tokenManagement,
         EncryptorInterface $encryptor,
         Logger $logger,
         PaymentCaptureFactory $paymentCaptureFactory,
@@ -116,14 +115,14 @@ class PaymentExecutor
         PaymentUpdateFactory $paymentUpdateFactory,
         PaymentRefundFactory $paymentRefundFactory,
         RemoteAddress $remoteAddress,
-        CvvRequestedByPublicSquare $cvvRequests
+        CvvRequestedByPublicSquare $cvvRequests,
+        SubscriptionRenewal $subscriptionRenewal
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->paymentCreateFactory = $paymentCreateFactory;
         $this->creditCardTokenFactory = $creditCardTokenFactory;
         $this->storeManager = $storeManager;
         $this->paymentTokenRepository = $paymentTokenRepository;
-        $this->tokenManagement = $tokenManagement;
         $this->encryptor = $encryptor;
         $this->logger = $logger->withName('PSQ:PaymentExecutor');
         $this->paymentCaptureFactory = $paymentCaptureFactory;
@@ -132,6 +131,7 @@ class PaymentExecutor
         $this->paymentRefundFactory = $paymentRefundFactory;
         $this->remoteAddress = $remoteAddress;
         $this->cvvRequests = $cvvRequests;
+        $this->subscriptionRenewal = $subscriptionRenewal;
     }
 
     public function setCommandSubject(array $commandSubject)
@@ -420,6 +420,7 @@ class PaymentExecutor
             }
             if ($cardId = $payment->getAdditionalInformation('cardId')) {
                 $idempotencyKey = $payment->getAdditionalInformation('idempotencyKey');
+                $initialPaymentId = $this->subscriptionRenewal->getInitialPaymentId($payment, $cardId);
                 $response = $this->paymentCreateFactory->create([
                     "idempotencyKey" => $idempotencyKey,
                     "amount" => $this->getAmount(),
@@ -431,6 +432,7 @@ class PaymentExecutor
                     "billingAddress" => $billingAddress,
                     "externalId" => $order->getIncrementId() ?? ($order->getId() ?? ""),
                     "deviceInformation" => $this->getDeviceInformation(),
+                    "initialPaymentId" => $initialPaymentId,
                 ])->getResponseData();
                 $this->setPaymentFromPSQResponse($payment, $response);
             } else {
@@ -573,16 +575,6 @@ class PaymentExecutor
             json_encode($paymentToken->getTokenDetails());
 
         return $this->encryptor->getHash($hashKey);
-    }
-
-    public function getCardIdFromPublicHash($publicHash, $customerId): string
-    {
-        $paymentToken = $this->tokenManagement->getByPublicHash(
-            $publicHash,
-            $customerId
-        );
-        // Null for an unknown hash or another customer's. CaptureCommand turns '' into "Card not found".
-        return $paymentToken ? (string) $paymentToken->getGatewayToken() : '';
     }
 
     public function throwUserFriendlyException(\Exception $e)
