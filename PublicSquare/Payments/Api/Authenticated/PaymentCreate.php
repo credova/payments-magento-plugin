@@ -51,8 +51,9 @@ class PaymentCreate extends \PublicSquare\Payments\Api\ApiRequestAbstract
     ) {
         parent::__construct($clientFactory, $configHelper, $logger);
         if ($idempotencyKey) {
-            // Include externalId to ensure uniqueness across multishipping orders created in a single submit
-            $suffix = $externalId ? ('-' . $externalId) : '';
+            // Include externalId to ensure uniqueness across multishipping orders created in a single submit. A
+            // renewal's key is already per attempt, and placing an attempt again reserves a new order ID.
+            $suffix = $externalId && !$initialPaymentId ? ('-' . $externalId) : '';
             $this->idempotencyKey = hash('sha256', $idempotencyKey . '-' . $email . '-authorize' . $suffix);
         }
         $this->requestData = [

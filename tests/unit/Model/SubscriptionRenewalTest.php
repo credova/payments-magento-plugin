@@ -2,6 +2,9 @@
 
 namespace PublicSquare\Payments\Test\Unit\Model;
 
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\DB\Select;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Quote\Api\CartRepositoryInterface;
 use Magento\Quote\Model\Quote;
@@ -26,6 +29,8 @@ class SubscriptionRenewalTest extends TestCase
     private PaymentTokenManagementInterface $tokenManagement;
     private Logger $logger;
     private SubscriptionRenewal $renewal;
+    /** Rows the placed-order lookup reads from sales_order joined to sales_order_payment. */
+    private array $orderRows = [];
 
     protected function setUp(): void
     {
@@ -37,7 +42,16 @@ class SubscriptionRenewalTest extends TestCase
             new RequirementResolver($this->createMock(Config::class), $this->createMock(ShippingAddressHistory::class)),
             new Logger(),
         );
-        $this->renewal = new SubscriptionRenewal($this->quoteRepository, $cardResolver, $this->logger);
+        $select = $this->createMock(Select::class);
+        $select->method('from')->willReturnSelf();
+        $select->method('join')->willReturnSelf();
+        $select->method('where')->willReturnSelf();
+        $connection = $this->createMock(AdapterInterface::class);
+        $connection->method('select')->willReturn($select);
+        $connection->method('fetchAll')->willReturnCallback(fn () => $this->orderRows);
+        $resource = $this->createMock(ResourceConnection::class);
+        $resource->method('getConnection')->willReturn($connection);
+        $this->renewal = new SubscriptionRenewal($this->quoteRepository, $cardResolver, $this->logger, $resource);
     }
 
     public static function unmarkedPayments(): array
@@ -93,6 +107,51 @@ class SubscriptionRenewalTest extends TestCase
 
         $this->assertNotEmpty($firstKey);
         $this->assertNotSame($firstKey, $quote->getPayment()->getAdditionalInformation('idempotencyKey'));
+    }
+
+    public function testStartsANewAttemptAfterTheChargeWasUndone(): void
+    {
+        $quote = $this->quote(['cardId' => 'card_1']);
+        // Once for the mark, once for the new attempt.
+        $this->quoteRepository->expects($this->exactly(2))->method('save')->with($quote);
+        $this->renewal->markAsRenewal($quote, $this->order('pmt_first', 'card_1'));
+        $undoneKey = $quote->getPayment()->getAdditionalInformation('idempotencyKey');
+
+        $this->renewal->startNewAttempt($quote);
+
+        $this->assertNotSame($undoneKey, $quote->getPayment()->getAdditionalInformation('idempotencyKey'));
+    }
+
+    public function testLeavesAShopperQuoteAloneAfterTheChargeWasUndone(): void
+    {
+        $quote = $this->quote(['cardId' => 'card_1', 'idempotencyKey' => 'from_checkout']);
+        $this->quoteRepository->expects($this->never())->method('save');
+
+        $this->renewal->startNewAttempt($quote);
+
+        $this->assertSame('from_checkout', $quote->getPayment()->getAdditionalInformation('idempotencyKey'));
+    }
+
+    public static function placedOrders(): array
+    {
+        $mark = [SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1']];
+        $row = fn (array $info) => ['increment_id' => '100000050', 'additional_information' => json_encode($info)];
+        return [
+            'an order for the attempt' => [[$row($mark + ['idempotencyKey' => 'key_1'])], '100000050'],
+            'no order yet' => [[], null],
+            // The LIKE also matches a longer key; the decoded value must be exact.
+            'an order for another attempt' => [[$row($mark + ['idempotencyKey' => 'key_10'])], null],
+            'a shopper order with the same key' => [[$row(['idempotencyKey' => 'key_1'])], null],
+        ];
+    }
+
+    #[DataProvider('placedOrders')]
+    public function testFindsTheOrderAlreadyPlacedForTheAttempt(array $rows, ?string $incrementId): void
+    {
+        $this->orderRows = $rows;
+        $payment = (new Interceptor())->setAdditionalInformation('idempotencyKey', 'key_1');
+
+        $this->assertSame($incrementId, $this->renewal->getPlacedOrderIncrementId($payment, 42));
     }
 
     public function testSendsAPaymentWhoseCardChangedAfterTheMarkAsAOneOff(): void

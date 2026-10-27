@@ -182,3 +182,4 @@ Currency,Currency
 "This renewal can't be linked to order %1, which wasn't paid through PublicSquare.","This renewal can't be linked to order %1, which wasn't paid through PublicSquare."
 "This renewal can't be linked to order %1, because its payment isn't an active PublicSquare card.","This renewal can't be linked to order %1, because its payment isn't an active PublicSquare card."
 "This renewal can't be linked to order %1, which was paid with a different card.","This renewal can't be linked to order %1, which was paid with a different card."
+"This renewal was already placed as order %1.","This renewal was already placed as order %1."
