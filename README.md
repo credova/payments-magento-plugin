@@ -73,9 +73,16 @@ consumer. Setting the quote's payment again removes the mark, so call `markAsRen
 it.
 
 Call `markAsRenewal()` once for each attempt to charge the renewal, before you queue it. Each call gives the payment a
-new idempotency key. If the same attempt is placed twice, for example when a queue message is redelivered,
-PublicSquare doesn't charge the card twice. To retry a declined renewal, mark the quote again so the retry gets a new
-key.
+new idempotency key. If the same attempt is placed again, for example when a queue message is redelivered, the card
+isn't charged twice:
+
+* If the first try charged the card but no order was saved, PublicSquare returns that payment for up to 24 hours, and
+  the order is placed with it.
+* If the first try placed an order, `submit()` fails with "This renewal was already placed as order …".
+* If the order failed to save after the charge, the plugin cancels or refunds the payment and gives the quote a new
+  key, so placing it again charges the card again.
+
+To retry a declined renewal, mark the quote again so the retry gets a new key.
 
 If PublicSquare rejects the recurring payment, `submit()` fails as it does for a declined card. The order isn't
 retried as a one-off payment.

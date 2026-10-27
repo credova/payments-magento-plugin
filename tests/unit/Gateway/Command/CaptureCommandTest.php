@@ -6,6 +6,7 @@ use Magento\Payment\Gateway\Command\CommandException;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Gateway\Command\CaptureCommand;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\CardResolver;
 
@@ -41,6 +42,16 @@ class CaptureCommandTest extends TestCase
     public function testRefusesASavedCardItCannotUse(): void
     {
         $payment = new CapturePayment(['public_hash' => 'hash_1'], customerId: 42);
+        $this->cardResolver->method('getCardId')->willReturn(null);
+        $this->executor->expects($this->never())->method('executeAuthorizeCapture');
+
+        $this->expectException(CommandException::class);
+        $this->command()->execute($this->subject($payment));
+    }
+
+    public function testRefusesASavedCardPaymentWithNoPublicHash(): void
+    {
+        $payment = new CapturePayment(['payment_method_nonce' => 'card_other'], customerId: 42, method: Config::VAULT_CODE);
         $this->cardResolver->method('getCardId')->willReturn(null);
         $this->executor->expects($this->never())->method('executeAuthorizeCapture');
 
@@ -101,9 +112,11 @@ class CapturePayment
         private array $additionalInformation,
         private ?int $customerId = null,
         private ?string $lastTransId = null,
+        private string $method = Config::CODE,
     ) {}
 
     public function getLastTransId() { return $this->lastTransId; }
+    public function getMethod() { return $this->method; }
 
     public function getAdditionalInformation($key) { return $this->additionalInformation[$key] ?? null; }
     public function setAdditionalInformation($key, $value) { $this->additionalInformation[$key] = $value; }
