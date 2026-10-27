@@ -5,6 +5,7 @@ namespace PublicSquare\Payments\Gateway\Command;
 use Magento\Payment\Gateway\CommandInterface;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Model\CardResolver;
 
 class CaptureCommand implements CommandInterface
@@ -40,7 +41,7 @@ class CaptureCommand implements CommandInterface
         $cardId = $this->cardResolver->getCardId($payment, $payment->getOrder()->getCustomerId());
         if ($cardId) {
             $payment->setAdditionalInformation('cardId', $cardId);
-        } elseif ($payment->getAdditionalInformation('public_hash')) {
+        } elseif ($payment->getAdditionalInformation('public_hash') || $payment->getMethod() === Config::VAULT_CODE) {
             $this->paymentExecutor->throwUserFriendlyException(new \Exception('Card not found'));
         }
 

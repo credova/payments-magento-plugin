@@ -33,6 +33,25 @@ class CardResolverTest extends TestCase
         $this->assertSame($cardId, $this->resolver()->getCardId($payment, 42));
     }
 
+    public static function savedCardPaymentsWithACardId(): array
+    {
+        return [
+            // The vault method runs the PublicSquare data observer too, so a client's nonce reaches the payment.
+            'an active saved card and a nonce' => [['public_hash' => 'hash_active', 'payment_method_nonce' => 'card_other'], 'card_saved'],
+            'a deleted saved card and a nonce' => [['public_hash' => 'hash_deleted', 'payment_method_nonce' => 'card_deleted'], null],
+            'a nonce and no public hash' => [['payment_method_nonce' => 'card_other'], null],
+            'a card ID and no public hash' => [['cardId' => 'card_other'], null],
+        ];
+    }
+
+    #[DataProvider('savedCardPaymentsWithACardId')]
+    public function testChargesASavedCardPaymentOnlyThroughItsPublicHash(array $additionalInformation, ?string $cardId): void
+    {
+        $payment = (new Payment())->setMethod(Config::VAULT_CODE)->setAdditionalInformation($additionalInformation);
+
+        $this->assertSame($cardId, $this->resolver()->getCardId($payment, 42));
+    }
+
     public static function unusableSavedCards(): array
     {
         return [

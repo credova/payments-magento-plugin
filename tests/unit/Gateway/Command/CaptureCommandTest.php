@@ -6,6 +6,7 @@ use Magento\Payment\Gateway\Command\CommandException;
 use PHPUnit\Framework\TestCase;
 use PublicSquare\Payments\Gateway\Command\CaptureCommand;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\CardResolver;
 
@@ -48,6 +49,16 @@ class CaptureCommandTest extends TestCase
         $this->command()->execute($this->subject($payment));
     }
 
+    public function testRefusesASavedCardPaymentWithNoPublicHash(): void
+    {
+        $payment = new CapturePayment(['payment_method_nonce' => 'card_other'], customerId: 42, method: Config::VAULT_CODE);
+        $this->cardResolver->method('getCardId')->willReturn(null);
+        $this->executor->expects($this->never())->method('executeAuthorizeCapture');
+
+        $this->expectException(CommandException::class);
+        $this->command()->execute($this->subject($payment));
+    }
+
     public function testCapturesAnExistingAuthorization(): void
     {
         $this->executor->method('getTransaction')->willReturn(new \stdClass());
@@ -83,7 +94,13 @@ class CaptureCommandTest extends TestCase
 /** The order payment fields CaptureCommand reads and writes. */
 class CapturePayment
 {
-    public function __construct(private array $additionalInformation, private ?int $customerId = null) {}
+    public function __construct(
+        private array $additionalInformation,
+        private ?int $customerId = null,
+        private string $method = Config::CODE,
+    ) {}
+
+    public function getMethod() { return $this->method; }
 
     public function getAdditionalInformation($key) { return $this->additionalInformation[$key] ?? null; }
     public function setAdditionalInformation($key, $value) { $this->additionalInformation[$key] = $value; }
