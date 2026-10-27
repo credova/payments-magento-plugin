@@ -3,6 +3,9 @@
 namespace PublicSquare\Payments\Test\Unit\Gateway;
 
 use Magento\Checkout\Model\Session;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\DB\Select;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Framework\Event;
 use Magento\Framework\Event\Observer;
@@ -10,6 +13,8 @@ use Magento\Framework\HTTP\PhpEnvironment\RemoteAddress;
 use Magento\Payment\Gateway\Command\CommandException;
 use Magento\Payment\Gateway\Data\PaymentDataObjectInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
+use Magento\Quote\Model\Quote;
+use Magento\Quote\Model\Quote\Payment as QuotePayment;
 use Magento\Quote\Model\QuoteRepository;
 use Magento\Sales\Model\Order\Payment\Interceptor;
 use Magento\Store\Model\StoreManagerInterface;
@@ -30,6 +35,7 @@ use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdateFactory;
 use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\CardResolver;
@@ -59,6 +65,9 @@ class PaymentExecutorTest extends TestCase
     private CvvRequestedByPublicSquare $cvvRequests;
     private SubscriptionRenewal $subscriptionRenewal;
     private CardResolver $cardResolver;
+    private CartRepositoryInterface $renewalQuotes;
+    /** Orders the renewal's placed-order lookup finds. */
+    private array $placedOrderRows = [];
 
     protected function setUp(): void
     {
@@ -73,10 +82,21 @@ class PaymentExecutorTest extends TestCase
         $this->tokenRepository = $this->createMock(PaymentTokenRepositoryInterface::class);
         $this->cvvRequests = new CvvRequestedByPublicSquare(new Session());
         $this->encryptor = $this->createMock(EncryptorInterface::class);
+        $select = $this->createMock(Select::class);
+        $select->method('from')->willReturnSelf();
+        $select->method('join')->willReturnSelf();
+        $select->method('where')->willReturnSelf();
+        $connection = $this->createMock(AdapterInterface::class);
+        $connection->method('select')->willReturn($select);
+        $connection->method('fetchAll')->willReturnCallback(fn () => $this->placedOrderRows);
+        $resource = $this->createMock(ResourceConnection::class);
+        $resource->method('getConnection')->willReturn($connection);
+        $this->renewalQuotes = $this->createMock(CartRepositoryInterface::class);
         $this->subscriptionRenewal = new SubscriptionRenewal(
-            $this->createMock(CartRepositoryInterface::class),
+            $this->renewalQuotes,
             $this->createMock(CardResolver::class),
             $this->logger,
+            $resource,
         );
         $this->cardResolver = $this->createMock(CardResolver::class);
     }
@@ -134,6 +154,22 @@ class PaymentExecutorTest extends TestCase
         // The device of the request that placed the renewal, as for any order: none from cron or a queue consumer.
         $this->assertSame(['ip_address' => '203.0.113.7'], $request->data['deviceInformation']);
         $this->assertSame($warns, $this->logger->lastMessage('warning') !== null);
+    }
+
+    /** A redelivered attempt gets its first payment back from PublicSquare, so it must not become a second order. */
+    public function testRefusesARenewalAttemptThatWasAlreadyPlaced(): void
+    {
+        $mark = [SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1']];
+        [$payment] = $this->checkoutPayment($mark);
+        $this->placedOrderRows = [[
+            'increment_id' => '100000050',
+            'additional_information' => json_encode($mark + ['idempotencyKey' => '1700000000000abc']),
+        ]];
+        $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('This renewal was already placed as order 100000050.');
+        $this->executor()->executeAuthorizeCapture($this->subject($payment));
     }
 
     public function testUsesTheBillingEmailAndNoShippingForAGuestVirtualCart(): void
@@ -388,6 +424,24 @@ class PaymentExecutorTest extends TestCase
         $this->assertSame(1, $payment->getIsTransactionClosed());
     }
 
+    /** Placing the renewal again must charge the card, not get the cancelled payment back from PublicSquare. */
+    public function testStartsANewRenewalAttemptWhenItsChargeIsUndone(): void
+    {
+        $payment = $this->authorizedPayment('requires_capture');
+        $this->expectRequest(PaymentCancelFactory::class, PaymentCancel::class, null);
+        $quotePayment = (new QuotePayment())->setAdditionalInformation([
+            SubscriptionRenewal::INITIAL_PAYMENT_KEY => ['paymentId' => 'pmt_first', 'cardId' => 'card_1'],
+            'idempotencyKey' => 'key_undone',
+        ]);
+        $quote = $this->createMock(Quote::class);
+        $quote->method('getPayment')->willReturn($quotePayment);
+        $this->renewalQuotes->expects($this->once())->method('save')->with($quote);
+
+        $this->executor()->executeObserverOrderDidFailToSubmit($this->orderEvent($payment, $quote));
+
+        $this->assertNotSame('key_undone', $quotePayment->getAdditionalInformation('idempotencyKey'));
+    }
+
     public function testDoesNothingWhenTheFailedOrderWasNeverCharged(): void
     {
         $payment = (new Interceptor())->setOrder($this->order([]));
@@ -440,6 +494,18 @@ class PaymentExecutorTest extends TestCase
     public function testRefusesASavedCardItCannotUse(): void
     {
         [$payment] = $this->checkoutPayment(info: ['public_hash' => 'hash_1']);
+        $this->cardResolver->method('getCardId')->willReturn(null);
+        $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('Card not found');
+        $this->executor()->executeAuthorize($this->subject($payment));
+    }
+
+    public function testRefusesASavedCardPaymentWithNoPublicHash(): void
+    {
+        [$payment] = $this->checkoutPayment(info: ['payment_method_nonce' => 'card_other']);
+        $payment->setMethod(Config::VAULT_CODE);
         $this->cardResolver->method('getCardId')->willReturn(null);
         $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
 
@@ -525,12 +591,13 @@ class PaymentExecutorTest extends TestCase
     }
 
     /** An observer for an order event, as Magento dispatches it; the order holds $payment. */
-    private function orderEvent(Interceptor $payment): Observer
+    private function orderEvent(Interceptor $payment, ?Quote $quote = null): Observer
     {
         $order = $payment->getOrder();
         $order->set('payment', $payment);
-        $event = new class(['order' => $order]) extends Event {
+        $event = new class(['order' => $order, 'quote' => $quote]) extends Event {
             public function getOrder() { return $this->getData('order'); }
+            public function getQuote() { return $this->getData('quote'); }
         };
         return new Observer(['event' => $event]);
     }

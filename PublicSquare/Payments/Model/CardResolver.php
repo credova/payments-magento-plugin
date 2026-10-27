@@ -4,6 +4,7 @@ namespace PublicSquare\Payments\Model;
 
 use Magento\Payment\Model\InfoInterface;
 use Magento\Vault\Api\PaymentTokenManagementInterface;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\CvvRecollection\RequirementResolver;
 
@@ -46,11 +47,15 @@ class CardResolver
      */
     public function getCardId($payment, $customerId): ?string
     {
-        if ($nonce = $payment->getAdditionalInformation('payment_method_nonce')) {
-            return $nonce;
-        }
         if ($publicHash = $payment->getAdditionalInformation('public_hash')) {
             return $this->getSavedCardId($publicHash, $customerId);
+        }
+        // A saved-card payment names its card only by public hash, so a client can't send a card ID instead.
+        if ($payment->getMethod() === Config::VAULT_CODE) {
+            return null;
+        }
+        if ($nonce = $payment->getAdditionalInformation('payment_method_nonce')) {
+            return $nonce;
         }
         return $payment->getAdditionalInformation('cardId') ?: null;
     }
