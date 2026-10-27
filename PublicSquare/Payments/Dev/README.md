@@ -1,7 +1,7 @@
 # Dev-only: simulated card security code rule
 
-**Spike branch, not for merge.** Stands in for PublicSquare's card security code rule (the GrabAGun "saved-card CVC
-step-up" transaction rule) until it is enabled on our Test account. Remove this branch once it is.
+**Spike branch, not for merge.** Stands in for PublicSquare's card security code rule (the "saved-card CVC step-up"
+transaction rule) until it is enabled on our Test account. Remove this branch once it is.
 
 Active only when Magento runs in developer mode **and** `dev/publicsquare/simulate_cvc_step_up_rule` is `1`
 (set it in `core_config_data`, then clean the config cache).
