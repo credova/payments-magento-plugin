@@ -68,6 +68,20 @@ class CaptureCommandTest extends TestCase
         $this->command()->execute($this->subject(new CapturePayment(['cardId' => 'card_1'])));
     }
 
+    /**
+     * A second partial invoice: the first capture turned the authorization into the capture transaction, so there is
+     * no authorization left. Creating a new payment would charge the card again.
+     */
+    public function testRefusesToChargeAgainAfterTheAuthorizationIsCaptured(): void
+    {
+        $this->executor->method('getTransaction')->willReturn(null);
+        $this->executor->expects($this->never())->method('executeAuthorizeCapture');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('This payment was already captured or canceled.');
+        $this->command()->execute($this->subject(new CapturePayment(['cardId' => 'card_1'], lastTransId: 'pmt_1')));
+    }
+
     public function testChargesNothingForAZeroAmount(): void
     {
         $this->executor->expects($this->never())->method('executeCapture');
@@ -97,9 +111,11 @@ class CapturePayment
     public function __construct(
         private array $additionalInformation,
         private ?int $customerId = null,
+        private ?string $lastTransId = null,
         private string $method = Config::CODE,
     ) {}
 
+    public function getLastTransId() { return $this->lastTransId; }
     public function getMethod() { return $this->method; }
 
     public function getAdditionalInformation($key) { return $this->additionalInformation[$key] ?? null; }

@@ -52,6 +52,12 @@ class CaptureCommand implements CommandInterface
             if ($transaction) {
                 // Capture the payment
                 $this->paymentExecutor->executeCapture($commandSubject);
+            } elseif ($payment->getLastTransId()) {
+                // Sent to PublicSquare already, and its authorization was captured or voided: a second partial
+                // invoice, or an order from another gateway. A new payment here would charge the card again.
+                $this->paymentExecutor->throwUserFriendlyException(new \Exception(
+                    'This payment was already captured or canceled. Create this invoice with Capture Offline.'
+                ));
             } else {
                 // Authorize and capture the payment
                 $this->paymentExecutor->executeAuthorizeCapture($commandSubject);
