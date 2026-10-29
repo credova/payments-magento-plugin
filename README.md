@@ -105,3 +105,52 @@ order as the initial order for later renewals.
 ## Development
 
 To build, run, or test this plugin locally, see [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md).
+
+## Releasing
+
+A release has three parts: a version change in `PublicSquare/Payments/composer.json`, a `vX.Y.Z` tag, and a GitHub
+release. There is no build step, and the release has no assets.
+
+`composer.json` is the only file that holds the plugin version. Do not change `setup_version` in `etc/module.xml` for
+a release. It is the Magento schema version, and it changes only with a schema or data patch.
+
+You need `gh` (logged in, with write access to the repo) and the mise toolchain from
+[LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md).
+
+1. Set the release version and the Shortcut story. The version must be newer than the latest tag.
+
+   ```sh
+   VERSION=0.2.7
+   STORY=12345
+   gh release view --json tagName --jq .tagName   # latest release
+   ```
+
+2. Change the version on a new branch. Then open a PR. `master` is protected, so the change must go through a PR.
+
+   ```sh
+   git switch master && git pull
+   git switch -c chore/sc-$STORY/release-v$VERSION
+   mise x -- composer config --file=PublicSquare/Payments/composer.json version $VERSION
+   git diff   # only the "version" line changes
+   git commit -am "chore: release v$VERSION [sc-$STORY]"
+   git push -u origin HEAD
+   gh pr create --fill
+   ```
+
+3. After the PR merges, create the GitHub release on the merge commit. This command also creates the tag. It writes
+   the release notes from the PRs merged since the last tag.
+
+   ```sh
+   SHA=$(gh pr view chore/sc-$STORY/release-v$VERSION --json mergeCommit --jq .mergeCommit.oid)
+   gh release create v$VERSION --target $SHA --title v$VERSION --generate-notes
+   ```
+
+   For a pre-release, add `--prerelease`.
+
+4. Make sure that the tag and the version agree.
+
+   ```sh
+   git fetch --tags
+   git show v$VERSION:PublicSquare/Payments/composer.json | jq -r .version   # must print $VERSION
+   gh release view v$VERSION --web
+   ```
