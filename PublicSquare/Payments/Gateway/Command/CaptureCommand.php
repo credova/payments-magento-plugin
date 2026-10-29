@@ -5,8 +5,6 @@ namespace PublicSquare\Payments\Gateway\Command;
 use Magento\Payment\Gateway\CommandInterface;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
-use PublicSquare\Payments\Helper\Config;
-use PublicSquare\Payments\Model\CardResolver;
 
 class CaptureCommand implements CommandInterface
 {
@@ -20,32 +18,18 @@ class CaptureCommand implements CommandInterface
      */
     private $paymentExecutor;
 
-    /**
-     * @var CardResolver
-     */
-    private $cardResolver;
-
     public function __construct(
         Logger $logger,
-        PaymentExecutor $paymentExecutor,
-        CardResolver $cardResolver
+        PaymentExecutor $paymentExecutor
     ) {
         $this->logger = $logger;
         $this->paymentExecutor = $paymentExecutor;
-        $this->cardResolver = $cardResolver;
     }
 
     public function execute(array $commandSubject)
     {
-        $payment = $commandSubject['payment']->getPayment();
-        $cardId = $this->cardResolver->getCardId($payment, $payment->getOrder()->getCustomerId());
-        if ($cardId) {
-            $payment->setAdditionalInformation('cardId', $cardId);
-        } elseif ($payment->getAdditionalInformation('public_hash') || $payment->getMethod() === Config::VAULT_CODE) {
-            $this->paymentExecutor->throwUserFriendlyException(new \Exception('Card not found'));
-        }
-
         if ($commandSubject["amount"] > 0) {
+            $payment = $commandSubject['payment']->getPayment();
             $this->paymentExecutor->setCommandSubject($commandSubject);
             $transaction = $this->paymentExecutor->getTransaction();
     
