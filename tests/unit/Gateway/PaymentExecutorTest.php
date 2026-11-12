@@ -35,6 +35,7 @@ use PublicSquare\Payments\Api\Authenticated\PaymentUpdate;
 use PublicSquare\Payments\Api\Authenticated\PaymentUpdateFactory;
 use PublicSquare\Payments\Exception\CvvRecollectionRequiredException;
 use PublicSquare\Payments\Gateway\PaymentExecutor;
+use PublicSquare\Payments\Helper\Config;
 use PublicSquare\Payments\Model\CvvRecollection\CvvRequestedByPublicSquare;
 use PublicSquare\Payments\Logger\Logger;
 use PublicSquare\Payments\Model\CardResolver;
@@ -63,6 +64,7 @@ class PaymentExecutorTest extends TestCase
     private EncryptorInterface $encryptor;
     private CvvRequestedByPublicSquare $cvvRequests;
     private SubscriptionRenewal $subscriptionRenewal;
+    private CardResolver $cardResolver;
     private CartRepositoryInterface $renewalQuotes;
     /** Orders the renewal's placed-order lookup finds. */
     private array $placedOrderRows = [];
@@ -96,6 +98,7 @@ class PaymentExecutorTest extends TestCase
             $this->logger,
             $resource,
         );
+        $this->cardResolver = $this->createMock(CardResolver::class);
     }
 
     // ---- Create the payment (authorize, or authorize and capture) ----
@@ -464,6 +467,53 @@ class PaymentExecutorTest extends TestCase
         $this->assertNull($payment->getAdditionalInformation('psq_refund_id'));
     }
 
+    // ---- The card to charge ----
+
+    public static function cardsToCharge(): array
+    {
+        return [
+            // CardResolver's answer: an admin order's card or a saved card; it replaces the cardId the client sent.
+            'the card CardResolver finds' => ['card_9', 'card_9'],
+            'the card entered at checkout' => [null, 'card_1'],
+        ];
+    }
+
+    #[DataProvider('cardsToCharge')]
+    public function testCreatesThePaymentWithTheCardOf(?string $resolvedCardId, string $cardId): void
+    {
+        [$payment] = $this->checkoutPayment();
+        $this->cardResolver->method('getCardId')->with($payment, 42)->willReturn($resolvedCardId);
+        $request = $this->expectRequest(PaymentCreateFactory::class, PaymentCreate::class, self::RESPONSE);
+
+        $this->executor()->executeAuthorize($this->subject($payment));
+
+        $this->assertSame($cardId, $request->data['cardId']);
+        $this->assertSame($cardId, $payment->getAdditionalInformation('cardId'));
+    }
+
+    public function testRefusesASavedCardItCannotUse(): void
+    {
+        [$payment] = $this->checkoutPayment(info: ['public_hash' => 'hash_1']);
+        $this->cardResolver->method('getCardId')->willReturn(null);
+        $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('Card not found');
+        $this->executor()->executeAuthorize($this->subject($payment));
+    }
+
+    public function testRefusesASavedCardPaymentWithNoPublicHash(): void
+    {
+        [$payment] = $this->checkoutPayment(info: ['payment_method_nonce' => 'card_other']);
+        $payment->setMethod(Config::VAULT_CODE);
+        $this->cardResolver->method('getCardId')->willReturn(null);
+        $this->factories[PaymentCreateFactory::class]->expects($this->never())->method('create');
+
+        $this->expectException(CommandException::class);
+        $this->expectExceptionMessage('Card not found');
+        $this->executor()->executeAuthorize($this->subject($payment));
+    }
+
     // ---- Helpers ----
 
     private function executor(): PaymentExecutor
@@ -481,7 +531,7 @@ class PaymentExecutorTest extends TestCase
             $this->tokenRepository, $this->encryptor, $this->logger,
             $this->factories[PaymentCaptureFactory::class], $this->factories[PaymentCancelFactory::class],
             $this->factories[PaymentUpdateFactory::class], $this->factories[PaymentRefundFactory::class],
-            $remoteAddress, $this->cvvRequests, $this->subscriptionRenewal,
+            $remoteAddress, $this->cvvRequests, $this->subscriptionRenewal, $this->cardResolver,
         );
     }
 

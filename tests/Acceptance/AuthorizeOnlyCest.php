@@ -46,13 +46,31 @@ class AuthorizeOnlyCest extends AdminOrderDetailPage
     {
         $orderId = $this->_placeAuthorizedOrder($I);
 
-        $this->_goToTheOrder($I);
-        $I->click('#order_invoice');
-        $I->waitForText('New Invoice');
-        $I->seeOptionIsSelected('select[name="invoice[capture_case]"]', 'Capture Online');
-        $I->waitForElementClickable('.order-totals-actions button.submit-button');
-        $I->click('.order-totals-actions button.submit-button');
-        $I->waitForText('The invoice has been created.', 60);
+        $this->_invoiceTheOrder($I);
+
+        $payment = $this->_payment($I, $orderId);
+        $I->assertSame($payment['base_amount_authorized'], $payment['base_amount_paid']);
+    }
+
+    /** Magento's vault method runs "vault_authorize" for a saved card in this mode. */
+    public function aSavedCardIsAuthorizedAndInvoiced(AcceptanceTester $I)
+    {
+        $this->_initialize($I);
+        $I->amOnPage('/customer/account/logout');
+        $this->_customerLogin($I);
+        $this->customerEmail = 'roni_cost@example.com';
+        // Saves the card (that order is authorized too), then pays with it.
+        $this->_addProductToCart($I);
+        $this->_goToCheckout($I);
+        $this->_checkoutWithCard($I, '4242424242424242', 'Thank you for your purchase!', false, true);
+        $this->_addProductToCart($I);
+        $this->_goToCheckout($I);
+        $this->_checkoutWithSavedCard($I);
+        $orderId = $this->_lastOrderId($I);
+        $I->seeInDatabase('sales_order_payment', ['parent_id' => $orderId, 'method' => 'publicsquare_payments']);
+        $this->_assertAuthorizedNotPaid($I, $orderId);
+
+        $this->_invoiceTheOrder($I);
 
         $payment = $this->_payment($I, $orderId);
         $I->assertSame($payment['base_amount_authorized'], $payment['base_amount_paid']);
@@ -83,11 +101,32 @@ class AuthorizeOnlyCest extends AdminOrderDetailPage
     private function _placeAuthorizedOrder(AcceptanceTester $I): int
     {
         $this->_doSuccessfulCheckout($I);
-        $orderId = (int) $I->grabFromDatabase('sales_order', 'entity_id', ['customer_email' => $this->customerEmail]);
+        $orderId = $this->_lastOrderId($I);
+        $this->_assertAuthorizedNotPaid($I, $orderId);
+        return $orderId;
+    }
+
+    private function _lastOrderId(AcceptanceTester $I): int
+    {
+        return (int) max($I->grabColumnFromDatabase('sales_order', 'entity_id', ['customer_email' => $this->customerEmail]));
+    }
+
+    private function _assertAuthorizedNotPaid(AcceptanceTester $I, int $orderId): void
+    {
         $payment = $this->_payment($I, $orderId);
         $I->assertGreaterThan(0, (float) $payment['base_amount_authorized']);
         $I->assertNull($payment['base_amount_paid']);
-        return $orderId;
+    }
+
+    private function _invoiceTheOrder(AcceptanceTester $I): void
+    {
+        $this->_goToTheOrder($I);
+        $I->click('#order_invoice');
+        $I->waitForText('New Invoice');
+        $I->seeOptionIsSelected('select[name="invoice[capture_case]"]', 'Capture Online');
+        $I->waitForElementClickable('.order-totals-actions button.submit-button');
+        $I->click('.order-totals-actions button.submit-button');
+        $I->waitForText('The invoice has been created.', 60);
     }
 
     /** The order grid lists the newest order first, which is the one this test placed. */

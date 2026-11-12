@@ -23,6 +23,7 @@ use Magento\Vault\Api\Data\PaymentTokenInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use PublicSquare\Payments\Api\Authenticated\PaymentCapture;
 use PublicSquare\Payments\Helper\Config;
+use PublicSquare\Payments\Model\CardResolver;
 use PublicSquare\Payments\Model\SubscriptionRenewal;
 
 class PaymentExecutor
@@ -102,6 +103,11 @@ class PaymentExecutor
      */
     private $subscriptionRenewal;
 
+    /**
+     * @var CardResolver
+     */
+    private $cardResolver;
+
     public function __construct(
         QuoteRepository $quoteRepository,
         PaymentCreateFactory $paymentCreateFactory,
@@ -116,7 +122,8 @@ class PaymentExecutor
         PaymentRefundFactory $paymentRefundFactory,
         RemoteAddress $remoteAddress,
         CvvRequestedByPublicSquare $cvvRequests,
-        SubscriptionRenewal $subscriptionRenewal
+        SubscriptionRenewal $subscriptionRenewal,
+        CardResolver $cardResolver
     ) {
         $this->quoteRepository = $quoteRepository;
         $this->paymentCreateFactory = $paymentCreateFactory;
@@ -132,6 +139,7 @@ class PaymentExecutor
         $this->remoteAddress = $remoteAddress;
         $this->cvvRequests = $cvvRequests;
         $this->subscriptionRenewal = $subscriptionRenewal;
+        $this->cardResolver = $cardResolver;
     }
 
     public function setCommandSubject(array $commandSubject)
@@ -399,6 +407,7 @@ class PaymentExecutor
             $this->setCommandSubject($commandSubject);
 
             $payment = $this->getPayment();
+            $this->setCardToCharge($payment);
             $quote = $this->getQuote();
             $order = $payment->getOrder();
 
@@ -588,6 +597,25 @@ class PaymentExecutor
             json_encode($paymentToken->getTokenDetails());
 
         return $this->encryptor->getHash($hashKey);
+    }
+
+    /**
+     * Records the PSQ card to charge as cardId, for every new payment (authorize, capture, and the vault's
+     * authorize and sale): an admin order's card, the customer's saved card, or a card entered at checkout.
+     *
+     * @param \Magento\Sales\Model\Order\Payment $payment
+     * @return void
+     * @throws \Exception When the payment uses a saved card that can't be charged
+     */
+    private function setCardToCharge($payment): void
+    {
+        $cardId = $this->cardResolver->getCardId($payment, $payment->getOrder()->getCustomerId());
+        if ($cardId) {
+            $payment->setAdditionalInformation('cardId', $cardId);
+        } elseif ($payment->getAdditionalInformation('public_hash') || $payment->getMethod() === Config::VAULT_CODE) {
+            // A saved-card payment names its card only by public hash; CardResolver refuses anything else.
+            throw new \Exception('Card not found');
+        }
     }
 
     public function throwUserFriendlyException(\Exception $e)
