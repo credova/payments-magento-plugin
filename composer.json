@@ -36,7 +36,7 @@
   },
   "config": {
     "platform": {
-      "php": "8.3.30"
+      "php": "8.3.37"
     },
     "allow-plugins": {
       "magento/composer-dependency-version-audit-plugin": true,

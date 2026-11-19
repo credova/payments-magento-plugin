@@ -9,7 +9,7 @@ npm.package_manager = "bun"
 # PHP must match config.platform.php in composer.json.
 # vfox-php compiles from source; on CI "system" uses setup-php's PHP instead.
 # postinstall pins Composer (the plugin installs the latest). The plugin omits ext-zip; php-webdriver needs it.
-php = { version = "{% if env.CI is defined %}system{% else %}8.3.30{% endif %}", install_env = { PHP_EXTRA_CONFIGURE_OPTIONS = "--with-zip" }, postinstall = '"$MISE_TOOL_INSTALL_PATH/bin/composer" self-update --no-interaction 2.9.7' }
+php = { version = "{% if env.CI is defined %}system{% else %}8.3.37{% endif %}", install_env = { PHP_EXTRA_CONFIGURE_OPTIONS = "--with-zip" }, postinstall = '"$MISE_TOOL_INSTALL_PATH/bin/composer" self-update --no-interaction 2.9.7' }
 
 # Hook and lint tools (hk.pkl). Keep the hk pin in sync with the `amends` version in hk.pkl.
 actionlint = "1.7.12"
